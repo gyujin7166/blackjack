@@ -11,8 +11,8 @@
 - Vite
 - React
 - TypeScript
-- React Three Fiber / Three.js
-- GSAP
+- React Three Fiber / Three.js (3D 단계에서 추가)
+- GSAP (애니메이션 단계에서 추가)
 - Socket.IO Client
 
 ### Server
@@ -50,4 +50,45 @@ blackjack/
 └─ shared/   # Client ↔ Server 공용 계약과 타입
 ```
 
+클라이언트는 필요한 기능이 생길 때 `pages`, `widgets`, `features`, `entities`, `shared` 레이어를 추가하는 가벼운 FSD 방식으로 확장합니다. 서버에는 FSD를 강제하지 않고 게임 규칙, 매칭, 게임 세션, Socket.IO 책임을 기준으로 분리합니다.
+
 초기 개발은 Socket.IO 연결과 게임 로직을 먼저 완성한 뒤 React Three Fiber와 GSAP 연출을 적용합니다.
+
+## 개발 환경
+
+Node.js 24.x를 사용합니다.
+
+```bash
+npm install
+```
+
+터미널 1에서 Socket.IO 서버를 실행합니다.
+
+```bash
+npm run dev:server
+```
+
+```text
+http://localhost:3001
+```
+
+터미널 2에서 Vite 클라이언트를 실행합니다.
+
+```bash
+npm run dev:client
+```
+
+```text
+http://localhost:5173
+```
+
+브라우저에서 클라이언트를 열었을 때 `Socket Status: Connected`가 표시되면 초기 연결이 정상입니다. 브라우저 창을 두 개 열면 서버 콘솔에서 서로 다른 두 Socket.IO 연결 ID를 확인할 수 있습니다.
+
+기본 개발 주소를 변경해야 하는 경우 클라이언트는 `VITE_SOCKET_URL`, 서버는 `PORT`와 `CLIENT_ORIGIN` 환경 변수를 사용할 수 있습니다.
+
+## 확인 명령
+
+```bash
+npm run typecheck
+npm run build
+```
