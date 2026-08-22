@@ -2,18 +2,14 @@
   "name": "blackjack",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "client",
-    "server",
-    "shared"
-  ],
+  "packageManager": "pnpm@11.22.0",
   "engines": {
     "node": "24.x"
   },
   "scripts": {
-    "dev:client": "npm run dev --workspace client",
-    "dev:server": "npm run dev --workspace server",
-    "build": "npm run build --workspace shared && npm run build --workspace server && npm run build --workspace client",
-    "typecheck": "npm run typecheck --workspace shared && npm run typecheck --workspace server && npm run typecheck --workspace client"
+    "dev:client": "pnpm --filter client dev",
+    "dev:server": "pnpm --filter server dev",
+    "build": "pnpm --filter @blackjack/shared build && pnpm --filter server build && pnpm --filter client build",
+    "typecheck": "pnpm --filter @blackjack/shared typecheck && pnpm --filter server typecheck && pnpm --filter client typecheck"
   }
 }
