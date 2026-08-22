@@ -56,16 +56,16 @@ blackjack/
 
 ## 개발 환경
 
-Node.js 24.x를 사용합니다.
+Node.js 24.x와 pnpm 11.x를 사용합니다.
 
 ```bash
-npm install
+pnpm install
 ```
 
 터미널 1에서 Socket.IO 서버를 실행합니다.
 
 ```bash
-npm run dev:server
+pnpm dev:server
 ```
 
 ```text
@@ -75,7 +75,7 @@ http://localhost:3001
 터미널 2에서 Vite 클라이언트를 실행합니다.
 
 ```bash
-npm run dev:client
+pnpm dev:client
 ```
 
 ```text
@@ -89,6 +89,6 @@ http://localhost:5173
 ## 확인 명령
 
 ```bash
-npm run typecheck
-npm run build
+pnpm typecheck
+pnpm build
 ```
