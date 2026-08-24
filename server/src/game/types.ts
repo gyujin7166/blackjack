@@ -1,15 +1,13 @@
 import type { Card } from '../blackjack/index.js';
+import type {
+  GamePhase,
+  GameResult,
+  PlayerSeat,
+  PlayerStatus,
+} from '@blackjack/shared';
 
-export type PlayerId = 'player1' | 'player2';
-export type GamePhase = PlayerId | 'dealer' | 'finished';
-export type PlayerStatus =
-  | 'waiting'
-  | 'playing'
-  | 'stood'
-  | 'bust'
-  | 'blackjack'
-  | 'twenty-one';
-export type GameResult = 'win' | 'lose' | 'push';
+export type PlayerId = PlayerSeat;
+export type { GamePhase, GameResult, PlayerStatus };
 
 export interface PlayerState {
   hand: Card[];
