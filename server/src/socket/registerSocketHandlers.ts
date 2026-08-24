@@ -83,7 +83,7 @@ export function registerSocketHandlers(
       );
     };
 
-    socket.on('matchmaking:join', () => {
+    const joinMatchmaking = () => {
       const existingMatch = activeMatches.get(socket.id);
 
       if (existingMatch) {
@@ -129,6 +129,39 @@ export function registerSocketHandlers(
       io.to(roomId).emit('game:state', createPublicGameState(roomId, session));
 
       logger.log(`matched: ${opponentSocketId} + ${socket.id} -> ${roomId}`);
+    };
+
+    socket.on('matchmaking:join', joinMatchmaking);
+
+    socket.on('matchmaking:new-opponent', () => {
+      const match = activeMatches.get(socket.id);
+      if (!match) return;
+
+      const session = gameSessions.get(match.roomId);
+      if (!session || session.phase !== 'finished') return;
+
+      const opponentEntry = [...activeMatches.entries()].find(
+        ([socketId, candidate]) =>
+          socketId !== socket.id && candidate.roomId === match.roomId,
+      );
+      const opponentSocket = opponentEntry
+        ? io.sockets.sockets.get(opponentEntry[0])
+        : undefined;
+
+      opponentSocket?.emit('matchmaking:opponent-left', {
+        roomId: match.roomId,
+      });
+      socket.leave(match.roomId);
+      opponentSocket?.leave(match.roomId);
+
+      activeMatches.delete(socket.id);
+      if (opponentEntry) {
+        activeMatches.delete(opponentEntry[0]);
+      }
+      gameSessions.delete(match.roomId);
+      rematchAcceptances.delete(match.roomId);
+
+      joinMatchmaking();
     });
 
     socket.on('player:hit', () => handlePlayerAction('hit'));

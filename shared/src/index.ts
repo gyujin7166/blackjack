@@ -74,6 +74,10 @@ export interface OpponentDisconnectedPayload {
   roomId: string;
 }
 
+export interface OpponentLeftPayload {
+  roomId: string;
+}
+
 export interface RematchStatePayload {
   roomId: string;
   player1Accepted: boolean;
@@ -88,6 +92,7 @@ export interface MatchmakingMatchedPayload {
 export interface ServerToClientEvents {
   'matchmaking:waiting': () => void;
   'matchmaking:matched': (payload: MatchmakingMatchedPayload) => void;
+  'matchmaking:opponent-left': (payload: OpponentLeftPayload) => void;
   'game:state': (payload: GameStatePayload) => void;
   'game:action-rejected': (payload: GameActionRejectedPayload) => void;
   'game:opponent-disconnected': (payload: OpponentDisconnectedPayload) => void;
@@ -96,6 +101,7 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   'matchmaking:join': () => void;
+  'matchmaking:new-opponent': () => void;
   'player:hit': () => void;
   'player:stand': () => void;
   'rematch:accept': () => void;
