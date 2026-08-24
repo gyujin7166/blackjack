@@ -7,6 +7,7 @@ import type {
   GameStatePayload,
   MatchmakingMatchedPayload,
   OpponentDisconnectedPayload,
+  OpponentLeftPayload,
   RematchStatePayload,
   ServerToClientEvents,
 } from '@blackjack/shared';
@@ -439,6 +440,163 @@ describe('waiting disconnect regression', () => {
     expect(playerOne.seat).toBe('player1');
     expect(playerTwo.seat).toBe('player2');
     expect(opponentDisconnected).not.toHaveBeenCalled();
+  });
+});
+
+describe('new opponent matchmaking', () => {
+  it('cleans the finished room, notifies only the opponent, and queues the requester', async () => {
+    const { clients, io, state } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
+    const [requesterMatch] = await matchClients(clients);
+    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    clients[0].emit('rematch:accept');
+    await acceptance;
+    const opponentLeft = onceEvent<OpponentLeftPayload>(
+      clients[1],
+      'matchmaking:opponent-left',
+    );
+    const waiting = onceEvent<void>(clients[0], 'matchmaking:waiting');
+    const requesterNotice = vi.fn();
+    clients[0].on('matchmaking:opponent-left', requesterNotice);
+
+    clients[0].emit('matchmaking:new-opponent');
+    const [notice] = await Promise.all([opponentLeft, waiting]);
+
+    expect(notice).toEqual({ roomId: requesterMatch.roomId });
+    expect(requesterNotice).not.toHaveBeenCalled();
+    expect(state.gameSessions.has(requesterMatch.roomId)).toBe(false);
+    expect(state.rematchAcceptances.has(requesterMatch.roomId)).toBe(false);
+    expect(
+      [...state.activeMatches.values()].filter(
+        (candidate) => candidate.roomId === requesterMatch.roomId,
+      ),
+    ).toHaveLength(0);
+    expect(io.sockets.sockets.get(clients[0].id!)?.rooms.has(requesterMatch.roomId)).toBe(
+      false,
+    );
+    expect(io.sockets.sockets.get(clients[1].id!)?.rooms.has(requesterMatch.roomId)).toBe(
+      false,
+    );
+  });
+
+  it('immediately matches the requester with an existing FIFO waiter in a new room', async () => {
+    const { clients, state } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+      3,
+    );
+    const [oldMatch] = await matchClients(clients.slice(0, 2));
+    const thirdWaiting = onceEvent<void>(clients[2], 'matchmaking:waiting');
+    clients[2].emit('matchmaking:join');
+    await thirdWaiting;
+    const requesterMatched = onceEvent<MatchmakingMatchedPayload>(
+      clients[0],
+      'matchmaking:matched',
+    );
+    const thirdMatched = onceEvent<MatchmakingMatchedPayload>(
+      clients[2],
+      'matchmaking:matched',
+    );
+    const opponentLeft = onceEvent<OpponentLeftPayload>(
+      clients[1],
+      'matchmaking:opponent-left',
+    );
+
+    clients[0].emit('matchmaking:new-opponent');
+    const [requesterNewMatch, thirdNewMatch] = await Promise.all([
+      requesterMatched,
+      thirdMatched,
+      opponentLeft,
+    ]);
+
+    expect(requesterNewMatch.roomId).toBe(thirdNewMatch.roomId);
+    expect(requesterNewMatch.roomId).not.toBe(oldMatch.roomId);
+    expect(state.gameSessions.has(requesterNewMatch.roomId)).toBe(true);
+    expect(state.activeMatches.has(clients[1].id!)).toBe(false);
+    expect(state.activeMatches.get(clients[0].id!)?.roomId).toBe(
+      requesterNewMatch.roomId,
+    );
+    expect(state.activeMatches.get(clients[2].id!)?.roomId).toBe(
+      requesterNewMatch.roomId,
+    );
+  });
+
+  it('does not auto-queue the old opponent and allows a later manual FIFO rematch', async () => {
+    const { clients } = await createFixture(cards('10', '9', 'A', '8', '7', 'K'));
+    const [oldMatch] = await matchClients(clients);
+    const requesterWaiting = onceEvent<void>(clients[0], 'matchmaking:waiting');
+    const opponentLeft = onceEvent<OpponentLeftPayload>(
+      clients[1],
+      'matchmaking:opponent-left',
+    );
+    const unexpectedOpponentWaiting = vi.fn();
+    clients[1].on('matchmaking:waiting', unexpectedOpponentWaiting);
+    clients[0].emit('matchmaking:new-opponent');
+    await Promise.all([requesterWaiting, opponentLeft]);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    expect(unexpectedOpponentWaiting).not.toHaveBeenCalled();
+
+    const requesterMatched = onceEvent<MatchmakingMatchedPayload>(
+      clients[0],
+      'matchmaking:matched',
+    );
+    const opponentMatched = onceEvent<MatchmakingMatchedPayload>(
+      clients[1],
+      'matchmaking:matched',
+    );
+    clients[1].emit('matchmaking:join');
+    const [requesterNewMatch, opponentNewMatch] = await Promise.all([
+      requesterMatched,
+      opponentMatched,
+    ]);
+
+    expect(requesterNewMatch.roomId).toBe(opponentNewMatch.roomId);
+    expect(requesterNewMatch.roomId).not.toBe(oldMatch.roomId);
+  });
+
+  it('ignores requests from an in-progress game or unmatched socket', async () => {
+    const { clients, state } = await createFixture(undefined, 3);
+    const [match] = await matchClients(clients.slice(0, 2));
+    const originalSession = state.gameSessions.get(match.roomId);
+    const notifications = vi.fn();
+    clients[1].on('matchmaking:opponent-left', notifications);
+
+    clients[0].emit('matchmaking:new-opponent');
+    clients[2].emit('matchmaking:new-opponent');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(state.gameSessions.get(match.roomId)).toBe(originalSession);
+    expect(state.activeMatches.get(clients[0].id!)).toEqual(match);
+    expect(state.activeMatches.has(clients[1].id!)).toBe(true);
+    expect(state.activeMatches.has(clients[2].id!)).toBe(false);
+    expect(notifications).not.toHaveBeenCalled();
+  });
+
+  it('does not change another room when leaving a finished game', async () => {
+    const { clients, state } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+      4,
+    );
+    const [leavingMatch] = await matchClients(clients.slice(0, 2));
+    const [otherMatch] = await matchClients(clients.slice(2, 4));
+    const otherSession = state.gameSessions.get(otherMatch.roomId);
+    const opponentLeft = onceEvent<OpponentLeftPayload>(
+      clients[1],
+      'matchmaking:opponent-left',
+    );
+    const otherRoomNotice = vi.fn();
+    clients[2].on('matchmaking:opponent-left', otherRoomNotice);
+    clients[3].on('matchmaking:opponent-left', otherRoomNotice);
+
+    clients[0].emit('matchmaking:new-opponent');
+    await opponentLeft;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(state.gameSessions.has(leavingMatch.roomId)).toBe(false);
+    expect(state.gameSessions.get(otherMatch.roomId)).toBe(otherSession);
+    expect(state.activeMatches.get(clients[2].id!)).toEqual(otherMatch);
+    expect(state.activeMatches.get(clients[3].id!)?.roomId).toBe(otherMatch.roomId);
+    expect(otherRoomNotice).not.toHaveBeenCalled();
   });
 });
 

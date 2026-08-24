@@ -96,13 +96,12 @@ export function App() {
   const [gameState, setGameState] = useState<GameStatePayload | null>(null);
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [opponentDisconnectMessage, setOpponentDisconnectMessage] = useState<
-    string | null
-  >(null);
+  const [opponentNotice, setOpponentNotice] = useState<string | null>(null);
   const [rematchPending, setRematchPending] = useState(false);
   const [rematchState, setRematchState] = useState<RematchStatePayload | null>(
     null,
   );
+  const [newOpponentPending, setNewOpponentPending] = useState(false);
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -113,17 +112,32 @@ export function App() {
       setGameState(null);
       setActionPending(false);
       setActionError(null);
-      setOpponentDisconnectMessage(null);
+      setOpponentNotice(null);
       setRematchPending(false);
       setRematchState(null);
+      setNewOpponentPending(false);
     };
     const handleWaiting = () => {
       setMatchmakingStatus('waiting');
       setMatch(null);
+      setGameState(null);
+      setActionPending(false);
+      setActionError(null);
+      setOpponentNotice(null);
+      setRematchPending(false);
+      setRematchState(null);
+      setNewOpponentPending(false);
     };
     const handleMatched = (payload: MatchmakingMatchedPayload) => {
       setMatchmakingStatus('matched');
       setMatch(payload);
+      setGameState(null);
+      setActionPending(false);
+      setActionError(null);
+      setOpponentNotice(null);
+      setRematchPending(false);
+      setRematchState(null);
+      setNewOpponentPending(false);
     };
     const handleGameState = (payload: GameStatePayload) => {
       setGameState(payload);
@@ -131,6 +145,7 @@ export function App() {
       setActionError(null);
       setRematchPending(false);
       setRematchState(null);
+      setNewOpponentPending(false);
     };
     const handleActionRejected = (payload: GameActionRejectedPayload) => {
       setActionPending(false);
@@ -142,9 +157,21 @@ export function App() {
       setGameState(null);
       setActionPending(false);
       setActionError(null);
-      setOpponentDisconnectMessage('상대 플레이어의 연결이 종료되었습니다.');
+      setOpponentNotice('상대 플레이어의 연결이 종료되었습니다.');
       setRematchPending(false);
       setRematchState(null);
+      setNewOpponentPending(false);
+    };
+    const handleOpponentLeft = () => {
+      setMatchmakingStatus('idle');
+      setMatch(null);
+      setGameState(null);
+      setActionPending(false);
+      setActionError(null);
+      setOpponentNotice('상대 플레이어가 새 상대 찾기를 선택했습니다.');
+      setRematchPending(false);
+      setRematchState(null);
+      setNewOpponentPending(false);
     };
     const handleRematchState = (payload: RematchStatePayload) => {
       setRematchPending(false);
@@ -155,6 +182,7 @@ export function App() {
     socket.on('disconnect', handleDisconnect);
     socket.on('matchmaking:waiting', handleWaiting);
     socket.on('matchmaking:matched', handleMatched);
+    socket.on('matchmaking:opponent-left', handleOpponentLeft);
     socket.on('game:state', handleGameState);
     socket.on('game:action-rejected', handleActionRejected);
     socket.on('game:opponent-disconnected', handleOpponentDisconnected);
@@ -166,6 +194,7 @@ export function App() {
       socket.off('disconnect', handleDisconnect);
       socket.off('matchmaking:waiting', handleWaiting);
       socket.off('matchmaking:matched', handleMatched);
+      socket.off('matchmaking:opponent-left', handleOpponentLeft);
       socket.off('game:state', handleGameState);
       socket.off('game:action-rejected', handleActionRejected);
       socket.off('game:opponent-disconnected', handleOpponentDisconnected);
@@ -180,7 +209,7 @@ export function App() {
     }
 
     setMatchmakingStatus('waiting');
-    setOpponentDisconnectMessage(null);
+    setOpponentNotice(null);
     socket.emit('matchmaking:join');
   };
 
@@ -225,9 +254,16 @@ export function App() {
     socket.emit(action === 'hit' ? 'player:hit' : 'player:stand');
   };
   const handleRematch = () => {
-    if (rematchPending) return;
+    if (rematchPending || newOpponentPending) return;
     setRematchPending(true);
     socket.emit('rematch:accept');
+  };
+  const handleNewOpponent = () => {
+    if (newOpponentPending || rematchPending || gameState?.phase !== 'finished') {
+      return;
+    }
+    setNewOpponentPending(true);
+    socket.emit('matchmaking:new-opponent');
   };
 
   return (
@@ -253,9 +289,9 @@ export function App() {
           <p className="mt-4">다른 플레이어를 기다리고 있습니다.</p>
         )}
 
-        {opponentDisconnectMessage && (
+        {opponentNotice && (
           <p className="mt-4 rounded-lg bg-amber-900 p-3 text-amber-100">
-            {opponentDisconnectMessage}
+            {opponentNotice}
           </p>
         )}
 
@@ -290,14 +326,24 @@ export function App() {
               </button>
             </div>
             {gameState.phase === 'finished' && (
-              <button
-                className="cursor-pointer rounded-[10px] border-0 bg-amber-500 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-                disabled={rematchPending || selfAccepted}
-                onClick={handleRematch}
-              >
-                재대결
-              </button>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  className="cursor-pointer rounded-[10px] border-0 bg-amber-500 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  disabled={rematchPending || newOpponentPending || selfAccepted}
+                  onClick={handleRematch}
+                >
+                  재대결
+                </button>
+                <button
+                  className="cursor-pointer rounded-[10px] border-0 bg-emerald-600 px-[18px] py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                  type="button"
+                  disabled={newOpponentPending || rematchPending}
+                  onClick={handleNewOpponent}
+                >
+                  새 상대 찾기
+                </button>
+              </div>
             )}
             {gameState.phase === 'finished' && selfAccepted && (
               <div className="m-0 rounded-lg bg-blue-900 p-3 text-blue-100">
