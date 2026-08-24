@@ -392,6 +392,135 @@ describe('rematch', () => {
   });
 });
 
+describe('new opponent', () => {
+  it('shows the control only for a finished game', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    expect(
+      screen.queryByRole('button', { name: '새 상대 찾기' }),
+    ).not.toBeInTheDocument();
+
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+
+    expect(screen.getByRole('button', { name: '재대결' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeEnabled();
+  });
+
+  it('emits once, prevents duplicate clicks, and disables rematch', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    socketMock.emit.mockClear();
+    const newOpponent = screen.getByRole('button', { name: '새 상대 찾기' });
+
+    fireEvent.click(newOpponent);
+    fireEvent.click(newOpponent);
+
+    expect(socketMock.emit).toHaveBeenCalledTimes(1);
+    expect(socketMock.emit).toHaveBeenCalledWith('matchmaking:new-opponent');
+    expect(newOpponent).toBeDisabled();
+    expect(screen.getByRole('button', { name: '재대결' })).toBeDisabled();
+  });
+
+  it('disables new opponent while a rematch request is pending', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+
+    fireEvent.click(screen.getByRole('button', { name: '재대결' }));
+
+    expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeDisabled();
+
+    serverEmit('rematch:state', {
+      roomId: playerOneMatch.roomId,
+      player1Accepted: true,
+      player2Accepted: false,
+    });
+
+    expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeEnabled();
+  });
+
+  it('clears the old game and rematch UI when waiting', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: playerOneMatch.roomId,
+      player1Accepted: true,
+      player2Accepted: false,
+    });
+
+    serverEmit('matchmaking:waiting');
+
+    expect(screen.getByText('다른 플레이어를 기다리고 있습니다.')).toBeVisible();
+    expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(screen.queryByText('재대결 요청 완료')).not.toBeInTheDocument();
+  });
+
+  it('clears the old game before a new matched state arrives', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+
+    serverEmit('matchmaking:matched', {
+      roomId: 'game:new-room',
+      seat: 'player2',
+    });
+
+    expect(screen.getByText('Room: game:new-room')).toBeVisible();
+    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(screen.queryByText('A♠')).not.toBeInTheDocument();
+  });
+
+  it('returns the old opponent to idle with a notice and keeps the socket connected', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+
+    serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId });
+
+    expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.getByText('상대 플레이어가 새 상대 찾기를 선택했습니다.'),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
+    expect(screen.getByText('Connected')).toBeVisible();
+  });
+
+  it('clears the opponent-left notice when starting matchmaking again', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId });
+    socketMock.emit.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: '게임 시작' }));
+
+    expect(socketMock.emit).toHaveBeenCalledWith('matchmaking:join');
+    expect(
+      screen.queryByText('상대 플레이어가 새 상대 찾기를 선택했습니다.'),
+    ).not.toBeInTheDocument();
+  });
+
+  it.each(['disconnect', 'game:opponent-disconnected'] as const)(
+    'clears pending after %s',
+    (event) => {
+      renderMatched();
+      serverEmit('game:state', gameState({ phase: 'finished' }));
+      fireEvent.click(screen.getByRole('button', { name: '새 상대 찾기' }));
+
+      if (event === 'disconnect') {
+        socketMock.connected = false;
+        act(() => socketMock.serverEmit('disconnect', 'transport close'));
+        socketMock.connected = true;
+        act(() => socketMock.serverEmit('connect'));
+      } else {
+        serverEmit('game:opponent-disconnected', { roomId: playerOneMatch.roomId });
+      }
+      serverEmit('matchmaking:matched', playerOneMatch);
+      serverEmit('game:state', gameState({ phase: 'finished' }));
+
+      expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeEnabled();
+    },
+  );
+});
+
 describe('disconnect', () => {
   it('clears match, game state, pending action, and action error', () => {
     renderMatched();
