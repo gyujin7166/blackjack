@@ -43,7 +43,7 @@ button:disabled {
 }
 
 .status-card {
-  width: min(100%, 480px);
+  width: min(100%, 760px);
   padding: 32px;
   border: 1px solid #374151;
   border-radius: 16px;
@@ -75,4 +75,66 @@ button:disabled {
 .match-info p {
   margin: 4px 0;
   overflow-wrap: anywhere;
+}
+
+.game-table {
+  display: grid;
+  gap: 16px;
+  margin-top: 24px;
+}
+
+.hand-panel {
+  padding: 16px;
+  border: 1px solid #374151;
+  border-radius: 12px;
+  background: #111827;
+}
+
+.hand-panel h2,
+.hand-panel p {
+  margin: 0 0 8px;
+}
+
+.card-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.playing-card {
+  display: grid;
+  min-width: 58px;
+  min-height: 76px;
+  place-items: center;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.hidden-card {
+  background: #1d4ed8;
+  color: #eff6ff;
+  font-size: 13px;
+}
+
+.action-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.action-controls button {
+  margin-top: 0;
+}
+
+.action-error {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #7f1d1d;
+  color: #fecaca;
 }
