@@ -6,6 +6,7 @@ import type {
   GameActionRejectedPayload,
   GameStatePayload,
   MatchmakingMatchedPayload,
+  OpponentDisconnectedPayload,
   ServerToClientEvents,
 } from '@blackjack/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -52,7 +53,10 @@ function onceEvent<T>(client: TestClient, event: string): Promise<T> {
   });
 }
 
-async function createFixture(deck = cards('2', '3', '10', '5', '6', '7', '8')) {
+async function createFixture(
+  deck = cards('2', '3', '10', '5', '6', '7', '8'),
+  clientCount = 2,
+) {
   const httpServer = createServer();
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
   const sessionFactory = vi.fn(() => createGameSession({ deck }));
@@ -63,7 +67,7 @@ async function createFixture(deck = cards('2', '3', '10', '5', '6', '7', '8')) {
 
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
   const { port } = httpServer.address() as AddressInfo;
-  const clients = [0, 1].map(() =>
+  const clients = Array.from({ length: clientCount }, () =>
     createClient(`http://127.0.0.1:${port}`, {
       forceNew: true,
       transports: ['websocket'],
@@ -325,5 +329,111 @@ describe('Socket.IO game integration', () => {
 
     expect(JSON.stringify(session)).toBe(before);
     expect(unexpectedState).not.toHaveBeenCalled();
+  });
+});
+
+describe('matched disconnect cleanup', () => {
+  it.each([
+    { disconnectedIndex: 0, remainingIndex: 1, player: 'player1' },
+    { disconnectedIndex: 1, remainingIndex: 0, player: 'player2' },
+  ])('notifies the opponent when $player disconnects', async ({
+    disconnectedIndex,
+    remainingIndex,
+  }) => {
+    const { clients } = await createFixture();
+    const matches = await matchClients(clients);
+    const notification = onceEvent<OpponentDisconnectedPayload>(
+      clients[remainingIndex],
+      'game:opponent-disconnected',
+    );
+
+    clients[disconnectedIndex].disconnect();
+
+    await expect(notification).resolves.toEqual({ roomId: matches[0].roomId });
+  });
+
+  it.each([0, 1])(
+    'removes both active matches when client %i disconnects',
+    async (disconnectedIndex) => {
+      const { clients, state } = await createFixture();
+      const [match] = await matchClients(clients);
+      const remainingIndex = disconnectedIndex === 0 ? 1 : 0;
+      const notification = onceEvent<OpponentDisconnectedPayload>(
+        clients[remainingIndex],
+        'game:opponent-disconnected',
+      );
+
+      clients[disconnectedIndex].disconnect();
+      await notification;
+
+      expect(
+        [...state.activeMatches.values()].filter(
+          (candidate) => candidate.roomId === match.roomId,
+        ),
+      ).toHaveLength(0);
+    },
+  );
+
+  it('removes only the disconnected room session and isolates other rooms', async () => {
+    const { clients, state } = await createFixture(undefined, 4);
+    const [firstMatch] = await matchClients(clients.slice(0, 2));
+    const [secondMatch] = await matchClients(clients.slice(2, 4));
+    const notification = onceEvent<OpponentDisconnectedPayload>(
+      clients[1],
+      'game:opponent-disconnected',
+    );
+    const otherRoomNotification = vi.fn();
+    clients[2].on('game:opponent-disconnected', otherRoomNotification);
+    clients[3].on('game:opponent-disconnected', otherRoomNotification);
+
+    clients[0].disconnect();
+    await notification;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(state.gameSessions.has(firstMatch.roomId)).toBe(false);
+    expect(state.gameSessions.has(secondMatch.roomId)).toBe(true);
+    expect(
+      [...state.activeMatches.values()].filter(
+        (candidate) => candidate.roomId === secondMatch.roomId,
+      ),
+    ).toHaveLength(2);
+    expect(otherRoomNotification).not.toHaveBeenCalled();
+  });
+
+  it('makes the remaining socket leave the game room', async () => {
+    const { clients, io } = await createFixture();
+    const [match] = await matchClients(clients);
+    const remainingSocket = io.sockets.sockets.get(clients[1].id!);
+    expect(remainingSocket?.rooms.has(match.roomId)).toBe(true);
+    const notification = onceEvent<OpponentDisconnectedPayload>(
+      clients[1],
+      'game:opponent-disconnected',
+    );
+
+    clients[0].disconnect();
+    await notification;
+
+    expect(remainingSocket?.rooms.has(match.roomId)).toBe(false);
+  });
+});
+
+describe('waiting disconnect regression', () => {
+  it('removes only the waiting socket and allows the next two users to match', async () => {
+    const { clients } = await createFixture(undefined, 3);
+    const opponentDisconnected = vi.fn();
+    clients[1].on('game:opponent-disconnected', opponentDisconnected);
+    clients[2].on('game:opponent-disconnected', opponentDisconnected);
+    const waiting = onceEvent<void>(clients[0], 'matchmaking:waiting');
+    clients[0].emit('matchmaking:join');
+    await waiting;
+
+    clients[0].disconnect();
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    const [playerOne, playerTwo] = await matchClients(clients.slice(1));
+
+    expect(playerOne.roomId).toBe(playerTwo.roomId);
+    expect(playerOne.seat).toBe('player1');
+    expect(playerTwo.seat).toBe('player2');
+    expect(opponentDisconnected).not.toHaveBeenCalled();
   });
 });
