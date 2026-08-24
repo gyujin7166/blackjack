@@ -2,6 +2,7 @@ import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import type {
+  ChatMessagePayload,
   ClientToServerEvents,
   GameActionRejectedPayload,
   GameStatePayload,
@@ -334,6 +335,133 @@ describe('Socket.IO game integration', () => {
 
     expect(JSON.stringify(session)).toBe(before);
     expect(unexpectedState).not.toHaveBeenCalled();
+  });
+});
+
+describe('room chat relay', () => {
+  it('broadcasts player1 canonical messages to both room players', async () => {
+    const { clients } = await createFixture();
+    const [match] = await matchClients(clients);
+    const playerOneMessage = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
+    const playerTwoMessage = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+
+    clients[0].emit('chat:send', { text: '안녕하세요' });
+    const [messageOne, messageTwo] = await Promise.all([
+      playerOneMessage,
+      playerTwoMessage,
+    ]);
+
+    expect(messageOne).toEqual({
+      roomId: match.roomId,
+      sender: 'player1',
+      text: '안녕하세요',
+    });
+    expect(messageTwo).toEqual(messageOne);
+  });
+
+  it('uses the authoritative player2 seat as sender', async () => {
+    const { clients } = await createFixture();
+    const [, match] = await matchClients(clients);
+    const message = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
+
+    clients[1].emit('chat:send', { text: '반갑습니다' });
+
+    await expect(message).resolves.toEqual({
+      roomId: match.roomId,
+      sender: 'player2',
+      text: '반갑습니다',
+    });
+  });
+
+  it('trims leading and trailing whitespace before broadcasting', async () => {
+    const { clients } = await createFixture();
+    await matchClients(clients);
+    const message = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+
+    clients[0].emit('chat:send', { text: '  trimmed message  ' });
+
+    expect((await message).text).toBe('trimmed message');
+  });
+
+  it.each([
+    { name: 'missing payload', payload: undefined },
+    { name: 'non-string text', payload: { text: 123 } },
+    { name: 'whitespace-only text', payload: { text: '   ' } },
+    { name: '201 characters', payload: { text: 'a'.repeat(201) } },
+  ])('ignores $name', async ({ payload }) => {
+    const { clients } = await createFixture();
+    await matchClients(clients);
+    const received = vi.fn();
+    clients[0].on('chat:message', received);
+    clients[1].on('chat:message', received);
+
+    clients[0].emit('chat:send', payload as never);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it('allows exactly 200 characters', async () => {
+    const { clients } = await createFixture();
+    await matchClients(clients);
+    const message = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+    const text = 'a'.repeat(200);
+
+    clients[0].emit('chat:send', { text });
+
+    expect((await message).text).toBe(text);
+  });
+
+  it('ignores an unmatched socket', async () => {
+    const { clients } = await createFixture();
+    const received = vi.fn();
+    clients[0].on('chat:message', received);
+    clients[1].on('chat:message', received);
+
+    clients[0].emit('chat:send', { text: 'not matched' });
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it('does not broadcast outside the matched room', async () => {
+    const { clients } = await createFixture(undefined, 4);
+    await matchClients(clients.slice(0, 2));
+    await matchClients(clients.slice(2, 4));
+    const senderMessage = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
+    const opponentMessage = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+    const otherRoomMessage = vi.fn();
+    clients[2].on('chat:message', otherRoomMessage);
+    clients[3].on('chat:message', otherRoomMessage);
+
+    clients[0].emit('chat:send', { text: 'room one only' });
+    await Promise.all([senderMessage, opponentMessage]);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(otherRoomMessage).not.toHaveBeenCalled();
+  });
+
+  it('allows chat after the game has finished', async () => {
+    const { clients } = await createFixture(cards('10', '9', 'A', '8', '7', 'K'));
+    await matchClients(clients);
+    const message = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+
+    clients[0].emit('chat:send', { text: 'finished chat' });
+
+    expect((await message).text).toBe('finished chat');
+  });
+
+  it('allows chat while waiting for the other rematch acceptance', async () => {
+    const { clients } = await createFixture(cards('10', '9', 'A', '8', '7', 'K'));
+    await matchClients(clients);
+    const rematchState = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    clients[0].emit('rematch:accept');
+    await rematchState;
+    const message = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
+
+    clients[1].emit('chat:send', { text: 'rematch?' });
+
+    expect((await message).text).toBe('rematch?');
   });
 });
 

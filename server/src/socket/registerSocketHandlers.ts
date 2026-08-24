@@ -8,6 +8,7 @@ import type {
   PlayerSeat,
   ServerToClientEvents,
 } from '@blackjack/shared';
+import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
 import type { Server } from 'socket.io';
 
 import {
@@ -166,6 +167,19 @@ export function registerSocketHandlers(
 
     socket.on('player:hit', () => handlePlayerAction('hit'));
     socket.on('player:stand', () => handlePlayerAction('stand'));
+    socket.on('chat:send', (payload) => {
+      const match = activeMatches.get(socket.id);
+      if (!match || !payload || typeof payload.text !== 'string') return;
+
+      const text = payload.text.trim();
+      if (!text || text.length > CHAT_MESSAGE_MAX_LENGTH) return;
+
+      io.to(match.roomId).emit('chat:message', {
+        roomId: match.roomId,
+        sender: match.seat,
+        text,
+      });
+    });
     socket.on('rematch:accept', () => {
       const match = activeMatches.get(socket.id);
       if (!match) return;
