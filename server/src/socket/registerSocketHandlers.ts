@@ -5,6 +5,7 @@ import type {
   GameAction,
   GameActionRejectionReason,
   MatchmakingMatchedPayload,
+  PlayerSeat,
   ServerToClientEvents,
 } from '@blackjack/shared';
 import type { Server } from 'socket.io';
@@ -13,19 +14,23 @@ import {
   createGameSession,
   createPublicGameState,
   type GameSession,
+  type GameSessionOptions,
 } from '../game/index.js';
 import { createMatchmakingQueue } from '../matchmaking/matchmakingQueue.js';
 
 type GameServer = Server<ClientToServerEvents, ServerToClientEvents>;
 
 export interface SocketHandlerOptions {
-  createSession?: () => GameSession;
+  createSession?: (
+    options?: Pick<GameSessionOptions, 'firstPlayer'>,
+  ) => GameSession;
   logger?: Pick<Console, 'log'>;
 }
 
 export interface SocketServerState {
   activeMatches: Map<string, MatchmakingMatchedPayload>;
   gameSessions: Map<string, GameSession>;
+  rematchAcceptances: Map<string, Set<PlayerSeat>>;
 }
 
 export function registerSocketHandlers(
@@ -35,6 +40,7 @@ export function registerSocketHandlers(
   const matchmakingQueue = createMatchmakingQueue();
   const activeMatches = new Map<string, MatchmakingMatchedPayload>();
   const gameSessions = new Map<string, GameSession>();
+  const rematchAcceptances = new Map<string, Set<PlayerSeat>>();
   const sessionFactory = options.createSession ?? createGameSession;
   const logger = options.logger ?? console;
 
@@ -127,6 +133,34 @@ export function registerSocketHandlers(
 
     socket.on('player:hit', () => handlePlayerAction('hit'));
     socket.on('player:stand', () => handlePlayerAction('stand'));
+    socket.on('rematch:accept', () => {
+      const match = activeMatches.get(socket.id);
+      if (!match) return;
+
+      const session = gameSessions.get(match.roomId);
+      if (!session || session.phase !== 'finished') return;
+
+      const acceptances = rematchAcceptances.get(match.roomId) ?? new Set<PlayerSeat>();
+      acceptances.add(match.seat);
+      rematchAcceptances.set(match.roomId, acceptances);
+      io.to(match.roomId).emit('rematch:state', {
+        roomId: match.roomId,
+        player1Accepted: acceptances.has('player1'),
+        player2Accepted: acceptances.has('player2'),
+      });
+
+      if (acceptances.size === 2) {
+        const nextFirstPlayer =
+          session.firstPlayer === 'player1' ? 'player2' : 'player1';
+        const nextSession = sessionFactory({ firstPlayer: nextFirstPlayer });
+        gameSessions.set(match.roomId, nextSession);
+        rematchAcceptances.delete(match.roomId);
+        io.to(match.roomId).emit(
+          'game:state',
+          createPublicGameState(match.roomId, nextSession),
+        );
+      }
+    });
 
     socket.on('disconnect', (reason) => {
       matchmakingQueue.remove(socket.id);
@@ -148,6 +182,7 @@ export function registerSocketHandlers(
           activeMatches.delete(opponentEntry[0]);
         }
         gameSessions.delete(match.roomId);
+        rematchAcceptances.delete(match.roomId);
       }
 
       activeMatches.delete(socket.id);
@@ -155,5 +190,5 @@ export function registerSocketHandlers(
     });
   });
 
-  return { activeMatches, gameSessions };
+  return { activeMatches, gameSessions, rematchAcceptances };
 }
