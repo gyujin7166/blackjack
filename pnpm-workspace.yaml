@@ -3,4 +3,4 @@ packages:
   - server
   - shared
 allowBuilds:
-  esbuild: false
+  esbuild: true
