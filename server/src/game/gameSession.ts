@@ -34,6 +34,7 @@ export function determineResult(
 
 export class GameSession {
   readonly deck: Card[];
+  readonly firstPlayer: PlayerId;
   readonly player1: PlayerState = { hand: [], status: 'waiting', result: null };
   readonly player2: PlayerState = { hand: [], status: 'waiting', result: null };
   readonly dealer: DealerState = { hand: [] };
@@ -41,6 +42,7 @@ export class GameSession {
 
   constructor(options: GameSessionOptions = {}) {
     this.deck = options.deck ? [...options.deck] : shuffleDeck(createDeck());
+    this.firstPlayer = options.firstPlayer ?? 'player1';
 
     this.dealInitialCards();
     this.startPlayerTurns();
@@ -84,25 +86,36 @@ export class GameSession {
 
     if (evaluateHand(this.dealer.hand).isNaturalBlackjack) {
       this.runDealerTurn();
-    } else if (this.player1.status !== 'blackjack') {
-      this.player1.status = 'playing';
-      this.phase = 'player1';
-    } else if (this.player2.status !== 'blackjack') {
-      this.player2.status = 'playing';
-      this.phase = 'player2';
-    } else {
-      this.runDealerTurn();
+      return;
     }
+
+    for (const playerId of this.turnOrder()) {
+      if (this[playerId].status !== 'blackjack') {
+        this[playerId].status = 'playing';
+        this.phase = playerId;
+        return;
+      }
+    }
+
+    this.runDealerTurn();
   }
 
   private advanceFrom(playerId: PlayerId): void {
-    if (playerId === 'player1' && this.player2.status !== 'blackjack') {
-      this.player2.status = 'playing';
-      this.phase = 'player2';
+    const [, secondPlayer] = this.turnOrder();
+
+    if (playerId === this.firstPlayer && this[secondPlayer].status !== 'blackjack') {
+      this[secondPlayer].status = 'playing';
+      this.phase = secondPlayer;
       return;
     }
 
     this.runDealerTurn();
+  }
+
+  private turnOrder(): readonly [PlayerId, PlayerId] {
+    return this.firstPlayer === 'player1'
+      ? ['player1', 'player2']
+      : ['player2', 'player1'];
   }
 
   private runDealerTurn(): void {
