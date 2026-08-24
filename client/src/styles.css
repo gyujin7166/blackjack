@@ -138,3 +138,11 @@ button:disabled {
   background: #7f1d1d;
   color: #fecaca;
 }
+
+.disconnect-message {
+  margin: 16px 0 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #78350f;
+  color: #fef3c7;
+}

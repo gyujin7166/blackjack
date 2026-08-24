@@ -303,4 +303,39 @@ describe('disconnect', () => {
     expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('resets the game and shows a message when the opponent disconnects', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('game:action-rejected', {
+      action: 'hit',
+      reason: 'not_your_turn',
+    });
+
+    serverEmit('game:opponent-disconnected', { roomId: playerOneMatch.roomId });
+
+    expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
+    expect(screen.queryByText('Seat: player1')).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByText('상대 플레이어의 연결이 종료되었습니다.')).toBeVisible();
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
+    expect(screen.getByText('Connected')).toBeVisible();
+  });
+
+  it('allows matchmaking again and clears the opponent disconnect message', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('game:opponent-disconnected', { roomId: playerOneMatch.roomId });
+    socketMock.emit.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: '게임 시작' }));
+
+    expect(socketMock.emit).toHaveBeenCalledTimes(1);
+    expect(socketMock.emit).toHaveBeenCalledWith('matchmaking:join');
+    expect(
+      screen.queryByText('상대 플레이어의 연결이 종료되었습니다.'),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '상대 찾는 중...' })).toBeDisabled();
+  });
 });
