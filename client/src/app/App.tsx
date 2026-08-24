@@ -84,6 +84,9 @@ export function App() {
   const [gameState, setGameState] = useState<GameStatePayload | null>(null);
   const [actionPending, setActionPending] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [opponentDisconnectMessage, setOpponentDisconnectMessage] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -94,6 +97,7 @@ export function App() {
       setGameState(null);
       setActionPending(false);
       setActionError(null);
+      setOpponentDisconnectMessage(null);
     };
     const handleWaiting = () => {
       setMatchmakingStatus('waiting');
@@ -112,6 +116,14 @@ export function App() {
       setActionPending(false);
       setActionError(rejectionMessages[payload.reason]);
     };
+    const handleOpponentDisconnected = () => {
+      setMatchmakingStatus('idle');
+      setMatch(null);
+      setGameState(null);
+      setActionPending(false);
+      setActionError(null);
+      setOpponentDisconnectMessage('상대 플레이어의 연결이 종료되었습니다.');
+    };
 
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
@@ -119,6 +131,7 @@ export function App() {
     socket.on('matchmaking:matched', handleMatched);
     socket.on('game:state', handleGameState);
     socket.on('game:action-rejected', handleActionRejected);
+    socket.on('game:opponent-disconnected', handleOpponentDisconnected);
     socket.connect();
 
     return () => {
@@ -128,6 +141,7 @@ export function App() {
       socket.off('matchmaking:matched', handleMatched);
       socket.off('game:state', handleGameState);
       socket.off('game:action-rejected', handleActionRejected);
+      socket.off('game:opponent-disconnected', handleOpponentDisconnected);
       socket.disconnect();
     };
   }, []);
@@ -138,6 +152,7 @@ export function App() {
     }
 
     setMatchmakingStatus('waiting');
+    setOpponentDisconnectMessage(null);
     socket.emit('matchmaking:join');
   };
 
@@ -188,6 +203,10 @@ export function App() {
 
         {matchmakingStatus === 'waiting' && (
           <p className="matchmaking-message">다른 플레이어를 기다리고 있습니다.</p>
+        )}
+
+        {opponentDisconnectMessage && (
+          <p className="disconnect-message">{opponentDisconnectMessage}</p>
         )}
 
         {match && (

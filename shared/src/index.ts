@@ -70,6 +70,10 @@ export interface GameActionRejectedPayload {
   reason: GameActionRejectionReason;
 }
 
+export interface OpponentDisconnectedPayload {
+  roomId: string;
+}
+
 export interface MatchmakingMatchedPayload {
   roomId: string;
   seat: PlayerSeat;
@@ -80,6 +84,7 @@ export interface ServerToClientEvents {
   'matchmaking:matched': (payload: MatchmakingMatchedPayload) => void;
   'game:state': (payload: GameStatePayload) => void;
   'game:action-rejected': (payload: GameActionRejectedPayload) => void;
+  'game:opponent-disconnected': (payload: OpponentDisconnectedPayload) => void;
 }
 
 export interface ClientToServerEvents {

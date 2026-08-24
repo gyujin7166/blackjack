@@ -130,6 +130,26 @@ export function registerSocketHandlers(
 
     socket.on('disconnect', (reason) => {
       matchmakingQueue.remove(socket.id);
+      const match = activeMatches.get(socket.id);
+
+      if (match) {
+        const opponentEntry = [...activeMatches.entries()].find(
+          ([socketId, candidate]) =>
+            socketId !== socket.id && candidate.roomId === match.roomId,
+        );
+        const opponentSocket = opponentEntry
+          ? io.sockets.sockets.get(opponentEntry[0])
+          : undefined;
+        opponentSocket?.emit('game:opponent-disconnected', {
+          roomId: match.roomId,
+        });
+        opponentSocket?.leave(match.roomId);
+        if (opponentEntry) {
+          activeMatches.delete(opponentEntry[0]);
+        }
+        gameSessions.delete(match.roomId);
+      }
+
       activeMatches.delete(socket.id);
       logger.log(`disconnected: ${socket.id} (${reason})`);
     });
