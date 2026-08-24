@@ -20,6 +20,9 @@ importers:
         specifier: ^4.8.1
         version: 4.8.3
     devDependencies:
+      '@blackjack/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@types/react':
         specifier: ^19.2.0
         version: 19.2.18
@@ -42,6 +45,9 @@ importers:
         specifier: ^4.8.1
         version: 4.8.3
     devDependencies:
+      '@blackjack/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3
