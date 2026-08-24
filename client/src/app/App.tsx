@@ -37,14 +37,19 @@ const resultLabels: Record<GameResult, string> = {
 
 function PlayerPanel({ title, player }: { title: string; player: PublicPlayerState }) {
   return (
-    <div className="hand-panel">
-      <h2>{title}</h2>
-      <p>Score: {player.score}</p>
-      <p>Status: {player.status}</p>
-      {player.result && <p>Result: {resultLabels[player.result]}</p>}
-      <div className="card-row">
+    <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
+      <h2 className="mb-2 text-[1.5em] font-bold">{title}</h2>
+      <p className="mb-2">Score: {player.score}</p>
+      <p className="mb-2">Status: {player.status}</p>
+      {player.result && (
+        <p className="mb-2">Result: {resultLabels[player.result]}</p>
+      )}
+      <div className="mt-3 flex flex-wrap gap-2">
         {player.hand.map((card: Card, index) => (
-          <span className="playing-card" key={`${card.suit}:${card.rank}:${index}`}>
+          <span
+            className="grid min-h-[76px] min-w-[58px] place-items-center rounded-lg bg-gray-50 p-2 text-xl font-extrabold text-gray-900"
+            key={`${card.suit}:${card.rank}:${index}`}
+          >
             {card.rank}
             {suitSymbols[card.suit]}
           </span>
@@ -56,17 +61,23 @@ function PlayerPanel({ title, player }: { title: string; player: PublicPlayerSta
 
 function DealerPanel({ dealer }: { dealer: PublicDealerState }) {
   return (
-    <div className="hand-panel">
-      <h2>Dealer</h2>
-      <p>Dealer score: {dealer.score ?? '?'}</p>
-      <div className="card-row">
+    <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
+      <h2 className="mb-2 text-[1.5em] font-bold">Dealer</h2>
+      <p className="mb-2">Dealer score: {dealer.score ?? '?'}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
         {dealer.hand.map((card, index) =>
           'hidden' in card ? (
-            <span className="playing-card hidden-card" key={`hidden:${index}`}>
+            <span
+              className="grid min-h-[76px] min-w-[58px] place-items-center rounded-lg bg-blue-700 p-2 text-[13px] font-extrabold text-blue-50"
+              key={`hidden:${index}`}
+            >
               Hidden
             </span>
           ) : (
-            <span className="playing-card" key={`${card.suit}:${card.rank}:${index}`}>
+            <span
+              className="grid min-h-[76px] min-w-[58px] place-items-center rounded-lg bg-gray-50 p-2 text-xl font-extrabold text-gray-900"
+              key={`${card.suit}:${card.rank}:${index}`}
+            >
               {card.rank}
               {suitSymbols[card.suit]}
             </span>
@@ -220,16 +231,17 @@ export function App() {
   };
 
   return (
-    <main className="app-shell">
-      <section className="status-card">
-        <p className="eyebrow">BLACKJACK</p>
-        <h1>Realtime Blackjack</h1>
+    <main className="grid min-h-screen place-items-center p-6">
+      <section className="w-full max-w-[760px] rounded-2xl border border-gray-700 bg-gray-800 p-8">
+        <p className="m-0 text-xs font-bold tracking-[0.16em]">BLACKJACK</p>
+        <h1 className="mt-2 mb-4 text-[2em] font-bold">Realtime Blackjack</h1>
         <p>
           Socket Status:{' '}
           <strong>{isConnected ? 'Connected' : 'Disconnected'}</strong>
         </p>
 
         <button
+          className="mt-5 cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
           type="button"
           onClick={handleStartGame}
           disabled={!isConnected || matchmakingStatus !== 'idle'}
@@ -238,27 +250,30 @@ export function App() {
         </button>
 
         {matchmakingStatus === 'waiting' && (
-          <p className="matchmaking-message">다른 플레이어를 기다리고 있습니다.</p>
+          <p className="mt-4">다른 플레이어를 기다리고 있습니다.</p>
         )}
 
         {opponentDisconnectMessage && (
-          <p className="disconnect-message">{opponentDisconnectMessage}</p>
+          <p className="mt-4 rounded-lg bg-amber-900 p-3 text-amber-100">
+            {opponentDisconnectMessage}
+          </p>
         )}
 
         {match && (
-          <div className="match-info">
-            <p>Room: {match.roomId}</p>
-            <p>Seat: {match.seat}</p>
+          <div className="mt-4 rounded-[10px] bg-gray-900 p-4">
+            <p className="my-1 [overflow-wrap:anywhere]">Room: {match.roomId}</p>
+            <p className="my-1 [overflow-wrap:anywhere]">Seat: {match.seat}</p>
           </div>
         )}
 
         {match && gameState && (
-          <section className="game-table">
+          <section className="mt-6 grid gap-4">
             <DealerPanel dealer={gameState.dealer} />
             {opponent && <PlayerPanel title="Opponent" player={opponent} />}
             {self && <PlayerPanel title="Self" player={self} />}
-            <div className="action-controls">
+            <div className="grid grid-cols-2 gap-3">
               <button
+                className="cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 disabled={!canAct}
                 onClick={() => handleAction('hit')}
@@ -266,6 +281,7 @@ export function App() {
                 Hit
               </button>
               <button
+                className="cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 disabled={!canAct}
                 onClick={() => handleAction('stand')}
@@ -275,7 +291,7 @@ export function App() {
             </div>
             {gameState.phase === 'finished' && (
               <button
-                className="rematch-button"
+                className="cursor-pointer rounded-[10px] border-0 bg-amber-500 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
                 type="button"
                 disabled={rematchPending || selfAccepted}
                 onClick={handleRematch}
@@ -284,18 +300,18 @@ export function App() {
               </button>
             )}
             {gameState.phase === 'finished' && selfAccepted && (
-              <div className="rematch-message">
-                <p>재대결 요청 완료</p>
-                <p>상대 플레이어의 선택을 기다리고 있습니다.</p>
+              <div className="m-0 rounded-lg bg-blue-900 p-3 text-blue-100">
+                <p className="my-1">재대결 요청 완료</p>
+                <p className="my-1">상대 플레이어의 선택을 기다리고 있습니다.</p>
               </div>
             )}
             {gameState.phase === 'finished' && opponentAccepted && !selfAccepted && (
-              <p className="rematch-message">
+              <p className="m-0 rounded-lg bg-blue-900 p-3 text-blue-100">
                 상대 플레이어가 재대결을 요청했습니다.
               </p>
             )}
             {actionError && (
-              <p className="action-error" role="alert">
+              <p className="m-0 rounded-lg bg-red-900 p-3 text-red-200" role="alert">
                 {actionError}
               </p>
             )}
