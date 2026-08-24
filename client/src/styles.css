@@ -146,3 +146,21 @@ button:disabled {
   background: #78350f;
   color: #fef3c7;
 }
+
+.rematch-button {
+  margin-top: 0;
+  background: #f59e0b;
+  color: #111827;
+}
+
+.rematch-message {
+  margin: 0;
+  padding: 12px;
+  border-radius: 8px;
+  background: #1e3a8a;
+  color: #dbeafe;
+}
+
+.rematch-message p {
+  margin: 4px 0;
+}

@@ -179,3 +179,93 @@ describe('finished session', () => {
     expect(() => session.stand()).toThrow('Cannot stand during the finished phase');
   });
 });
+
+describe('configurable first player', () => {
+  it('defaults to player1', () => {
+    const session = createGameSession({ deck: cards('10', '9', '10', '6', '8', '7') });
+
+    expect(session.firstPlayer).toBe('player1');
+    expect(session.phase).toBe('player1');
+  });
+
+  it('starts with player2 without changing the deal order', () => {
+    const session = createGameSession({
+      deck: cards('2', '3', '10', '5', '6', '7'),
+      firstPlayer: 'player2',
+    });
+
+    expect(session.firstPlayer).toBe('player2');
+    expect(session.phase).toBe('player2');
+    expect(session.player1.hand.map((card) => card.rank)).toEqual(['2', '5']);
+    expect(session.player2.hand.map((card) => card.rank)).toEqual(['3', '6']);
+  });
+
+  it('moves from player2 to player1 after stand', () => {
+    const session = createGameSession({
+      deck: cards('10', '9', '10', '6', '8', '7'),
+      firstPlayer: 'player2',
+    });
+
+    session.stand();
+
+    expect(session.player2.status).toBe('stood');
+    expect(session.phase).toBe('player1');
+  });
+
+  it.each([
+    { name: 'bust', deck: cards('2', '10', '10', '5', 'K', '7', '2'), status: 'bust' },
+    { name: '21', deck: cards('2', '10', '10', '5', '5', '7', '6'), status: 'twenty-one' },
+  ] as const)('moves to player1 after player2 hits to $name', ({ deck, status }) => {
+    const session = createGameSession({ deck, firstPlayer: 'player2' });
+
+    session.hit();
+
+    expect(session.player2.status).toBe(status);
+    expect(session.phase).toBe('player1');
+  });
+
+  it('skips a player2 natural blackjack and starts player1', () => {
+    const session = createGameSession({
+      deck: cards('10', 'A', '10', '6', 'K', '7'),
+      firstPlayer: 'player2',
+    });
+
+    expect(session.player2.status).toBe('blackjack');
+    expect(session.phase).toBe('player1');
+  });
+
+  it('skips a player1 natural after player2 finishes', () => {
+    const session = createGameSession({
+      deck: cards('A', '10', '10', 'K', '6', '7'),
+      firstPlayer: 'player2',
+    });
+
+    expect(session.phase).toBe('player2');
+    session.stand();
+
+    expect(session.player1.status).toBe('blackjack');
+    expect(session.phase).toBe('finished');
+  });
+
+  it('preserves both-player natural blackjack behavior', () => {
+    const session = createGameSession({
+      deck: cards('A', 'A', '10', 'K', 'Q', '7'),
+      firstPlayer: 'player2',
+    });
+
+    expect(session.phase).toBe('finished');
+    expect(session.player1.result).toBe('win');
+    expect(session.player2.result).toBe('win');
+  });
+
+  it('preserves immediate dealer natural blackjack behavior', () => {
+    const session = createGameSession({
+      deck: cards('10', '9', 'A', '8', '7', 'K'),
+      firstPlayer: 'player2',
+    });
+
+    expect(session.phase).toBe('finished');
+    expect(session.player1.result).toBe('lose');
+    expect(session.player2.result).toBe('lose');
+  });
+});

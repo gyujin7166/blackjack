@@ -7,6 +7,7 @@ import type {
   GameStatePayload,
   MatchmakingMatchedPayload,
   OpponentDisconnectedPayload,
+  RematchStatePayload,
   ServerToClientEvents,
 } from '@blackjack/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,7 +15,7 @@ import { Server } from 'socket.io';
 import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
 
 import type { Rank, Suit, Card } from '../src/blackjack/index.js';
-import { createGameSession } from '../src/game/index.js';
+import { createGameSession, type GameSessionOptions } from '../src/game/index.js';
 import {
   registerSocketHandlers,
   type SocketServerState,
@@ -59,7 +60,10 @@ async function createFixture(
 ) {
   const httpServer = createServer();
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
-  const sessionFactory = vi.fn(() => createGameSession({ deck }));
+  const sessionFactory = vi.fn(
+    (options: Pick<GameSessionOptions, 'firstPlayer'> = {}) =>
+      createGameSession({ deck, ...options }),
+  );
   const state = registerSocketHandlers(io, {
     createSession: sessionFactory,
     logger: { log: vi.fn() },
@@ -435,5 +439,180 @@ describe('waiting disconnect regression', () => {
     expect(playerOne.seat).toBe('player1');
     expect(playerTwo.seat).toBe('player2');
     expect(opponentDisconnected).not.toHaveBeenCalled();
+  });
+});
+
+describe('rematch', () => {
+  it.each([
+    {
+      acceptingIndex: 0,
+      expected: { player1Accepted: true, player2Accepted: false },
+    },
+    {
+      acceptingIndex: 1,
+      expected: { player1Accepted: false, player2Accepted: true },
+    },
+  ])('broadcasts one acceptance without replacing the session', async ({
+    acceptingIndex,
+    expected,
+  }) => {
+    const { clients, state, sessionFactory } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
+    const [match] = await matchClients(clients);
+    const originalSession = state.gameSessions.get(match.roomId);
+    const stateOne = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    const stateTwo = onceEvent<RematchStatePayload>(clients[1], 'rematch:state');
+
+    clients[acceptingIndex].emit('rematch:accept');
+    const [playerOneState, playerTwoState] = await Promise.all([stateOne, stateTwo]);
+
+    expect(playerOneState).toEqual({ roomId: match.roomId, ...expected });
+    expect(playerTwoState).toEqual(playerOneState);
+    expect(state.gameSessions.get(match.roomId)).toBe(originalSession);
+    expect(sessionFactory).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts a new session in the same room after both players accept', async () => {
+    const { clients, io, state, sessionFactory } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
+    const matches = await matchClients(clients);
+    const roomId = matches[0].roomId;
+    const originalSession = state.gameSessions.get(roomId);
+    const firstAcceptanceOne = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
+    const firstAcceptanceTwo = onceEvent<RematchStatePayload>(
+      clients[1],
+      'rematch:state',
+    );
+    clients[0].emit('rematch:accept');
+    await Promise.all([firstAcceptanceOne, firstAcceptanceTwo]);
+    const newStateOne = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const newStateTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
+    const unexpectedMatched = vi.fn();
+    clients[0].on('matchmaking:matched', unexpectedMatched);
+    clients[1].on('matchmaking:matched', unexpectedMatched);
+
+    clients[1].emit('rematch:accept');
+    const [playerOneState, playerTwoState] = await Promise.all([
+      newStateOne,
+      newStateTwo,
+    ]);
+
+    expect(playerOneState).toEqual(playerTwoState);
+    expect(playerOneState.roomId).toBe(roomId);
+    expect(state.gameSessions.get(roomId)).not.toBe(originalSession);
+    expect(sessionFactory).toHaveBeenCalledTimes(2);
+    expect(state.rematchAcceptances.has(roomId)).toBe(false);
+    expect(state.activeMatches.get(clients[0].id!)).toEqual(matches[0]);
+    expect(state.activeMatches.get(clients[1].id!)).toEqual(matches[1]);
+    expect(io.sockets.sockets.get(clients[0].id!)?.rooms.has(roomId)).toBe(true);
+    expect(io.sockets.sockets.get(clients[1].id!)?.rooms.has(roomId)).toBe(true);
+    expect(unexpectedMatched).not.toHaveBeenCalled();
+  });
+
+  it('alternates the first player across consecutive rematches', async () => {
+    const { clients, state } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
+    const [match] = await matchClients(clients);
+    const roomId = match.roomId;
+    expect(state.gameSessions.get(roomId)?.firstPlayer).toBe('player1');
+
+    const firstAcceptance = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
+    clients[0].emit('rematch:accept');
+    await firstAcceptance;
+    const firstRematchState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    clients[1].emit('rematch:accept');
+    await firstRematchState;
+
+    expect(state.gameSessions.get(roomId)?.firstPlayer).toBe('player2');
+
+    const secondAcceptance = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
+    clients[0].emit('rematch:accept');
+    await secondAcceptance;
+    const secondRematchState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    clients[1].emit('rematch:accept');
+    await secondRematchState;
+
+    expect(state.gameSessions.get(roomId)?.firstPlayer).toBe('player1');
+  });
+
+  it('treats duplicate acceptance from one player as one vote', async () => {
+    const { clients, state, sessionFactory } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
+    const [match] = await matchClients(clients);
+    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    clients[0].emit('rematch:accept');
+    await acceptance;
+
+    clients[0].emit('rematch:accept');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(state.rematchAcceptances.get(match.roomId)?.size).toBe(1);
+    expect(sessionFactory).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores acceptance while the game is in progress', async () => {
+    const { clients, state, sessionFactory } = await createFixture();
+    const [match] = await matchClients(clients);
+    const rematchState = vi.fn();
+    clients[0].on('rematch:state', rematchState);
+
+    clients[0].emit('rematch:accept');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(state.rematchAcceptances.has(match.roomId)).toBe(false);
+    expect(sessionFactory).toHaveBeenCalledTimes(1);
+    expect(rematchState).not.toHaveBeenCalled();
+  });
+
+  it('ignores acceptance from an unmatched socket', async () => {
+    const { clients, state, sessionFactory } = await createFixture();
+    const rematchState = vi.fn();
+    clients[0].on('rematch:state', rematchState);
+
+    clients[0].emit('rematch:accept');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(state.rematchAcceptances.size).toBe(0);
+    expect(sessionFactory).not.toHaveBeenCalled();
+    expect(rematchState).not.toHaveBeenCalled();
+  });
+
+  it('removes acceptance when an opponent disconnects while waiting', async () => {
+    const { clients, state } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
+    const [match] = await matchClients(clients);
+    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    clients[0].emit('rematch:accept');
+    await acceptance;
+    expect(state.rematchAcceptances.has(match.roomId)).toBe(true);
+    const disconnected = onceEvent<OpponentDisconnectedPayload>(
+      clients[0],
+      'game:opponent-disconnected',
+    );
+
+    clients[1].disconnect();
+    await disconnected;
+
+    expect(state.rematchAcceptances.has(match.roomId)).toBe(false);
+    expect(state.gameSessions.has(match.roomId)).toBe(false);
+    expect(
+      [...state.activeMatches.values()].some(
+        (candidate) => candidate.roomId === match.roomId,
+      ),
+    ).toBe(false);
   });
 });

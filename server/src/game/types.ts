@@ -22,4 +22,5 @@ export interface DealerState {
 export interface GameSessionOptions {
   /** The first array item is the next card to be dealt. */
   deck?: readonly Card[];
+  firstPlayer?: PlayerId;
 }

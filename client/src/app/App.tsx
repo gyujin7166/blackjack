@@ -8,6 +8,7 @@ import type {
   MatchmakingMatchedPayload,
   MatchmakingStatus,
   PublicPlayerState,
+  RematchStatePayload,
   Suit,
 } from '@blackjack/shared';
 import { useEffect, useState } from 'react';
@@ -87,6 +88,10 @@ export function App() {
   const [opponentDisconnectMessage, setOpponentDisconnectMessage] = useState<
     string | null
   >(null);
+  const [rematchPending, setRematchPending] = useState(false);
+  const [rematchState, setRematchState] = useState<RematchStatePayload | null>(
+    null,
+  );
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -98,6 +103,8 @@ export function App() {
       setActionPending(false);
       setActionError(null);
       setOpponentDisconnectMessage(null);
+      setRematchPending(false);
+      setRematchState(null);
     };
     const handleWaiting = () => {
       setMatchmakingStatus('waiting');
@@ -111,6 +118,8 @@ export function App() {
       setGameState(payload);
       setActionPending(false);
       setActionError(null);
+      setRematchPending(false);
+      setRematchState(null);
     };
     const handleActionRejected = (payload: GameActionRejectedPayload) => {
       setActionPending(false);
@@ -123,6 +132,12 @@ export function App() {
       setActionPending(false);
       setActionError(null);
       setOpponentDisconnectMessage('상대 플레이어의 연결이 종료되었습니다.');
+      setRematchPending(false);
+      setRematchState(null);
+    };
+    const handleRematchState = (payload: RematchStatePayload) => {
+      setRematchPending(false);
+      setRematchState(payload);
     };
 
     socket.on('connect', handleConnect);
@@ -132,6 +147,7 @@ export function App() {
     socket.on('game:state', handleGameState);
     socket.on('game:action-rejected', handleActionRejected);
     socket.on('game:opponent-disconnected', handleOpponentDisconnected);
+    socket.on('rematch:state', handleRematchState);
     socket.connect();
 
     return () => {
@@ -142,6 +158,7 @@ export function App() {
       socket.off('game:state', handleGameState);
       socket.off('game:action-rejected', handleActionRejected);
       socket.off('game:opponent-disconnected', handleOpponentDisconnected);
+      socket.off('rematch:state', handleRematchState);
       socket.disconnect();
     };
   }, []);
@@ -177,10 +194,29 @@ export function App() {
       gameState.phase !== 'finished' &&
       gameState.phase === match.seat,
   );
+  const selfAccepted = Boolean(
+    match &&
+      rematchState &&
+      (match.seat === 'player1'
+        ? rematchState.player1Accepted
+        : rematchState.player2Accepted),
+  );
+  const opponentAccepted = Boolean(
+    match &&
+      rematchState &&
+      (match.seat === 'player1'
+        ? rematchState.player2Accepted
+        : rematchState.player1Accepted),
+  );
   const handleAction = (action: 'hit' | 'stand') => {
     if (!canAct) return;
     setActionPending(true);
     socket.emit(action === 'hit' ? 'player:hit' : 'player:stand');
+  };
+  const handleRematch = () => {
+    if (rematchPending) return;
+    setRematchPending(true);
+    socket.emit('rematch:accept');
   };
 
   return (
@@ -237,6 +273,27 @@ export function App() {
                 Stand
               </button>
             </div>
+            {gameState.phase === 'finished' && (
+              <button
+                className="rematch-button"
+                type="button"
+                disabled={rematchPending || selfAccepted}
+                onClick={handleRematch}
+              >
+                재대결
+              </button>
+            )}
+            {gameState.phase === 'finished' && selfAccepted && (
+              <div className="rematch-message">
+                <p>재대결 요청 완료</p>
+                <p>상대 플레이어의 선택을 기다리고 있습니다.</p>
+              </div>
+            )}
+            {gameState.phase === 'finished' && opponentAccepted && !selfAccepted && (
+              <p className="rematch-message">
+                상대 플레이어가 재대결을 요청했습니다.
+              </p>
+            )}
             {actionError && (
               <p className="action-error" role="alert">
                 {actionError}
