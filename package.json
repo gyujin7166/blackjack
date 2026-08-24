@@ -1,0 +1,15 @@
+{
+  "name": "blackjack",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "dev:client": "pnpm --filter client dev",
+    "dev:server": "pnpm --filter server dev",
+    "build": "pnpm --filter @blackjack/shared build && pnpm --filter server build && pnpm --filter client build",
+    "typecheck": "pnpm --filter @blackjack/shared typecheck && pnpm --filter server typecheck && pnpm --filter client typecheck"
+  }
+}
