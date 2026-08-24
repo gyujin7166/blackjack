@@ -1,6 +1,6 @@
-export const SUITS = ['clubs', 'diamonds', 'hearts', 'spades'] as const;
+import type { Card, Rank, Suit } from '@blackjack/shared';
 
-export type Suit = (typeof SUITS)[number];
+export const SUITS = ['clubs', 'diamonds', 'hearts', 'spades'] as const;
 
 export const RANKS = [
   'A',
@@ -18,9 +18,4 @@ export const RANKS = [
   'K',
 ] as const;
 
-export type Rank = (typeof RANKS)[number];
-
-export interface Card {
-  suit: Suit;
-  rank: Rank;
-}
+export type { Card, Rank, Suit };
