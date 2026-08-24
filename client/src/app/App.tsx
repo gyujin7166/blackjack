@@ -1,5 +1,6 @@
 import type {
   Card,
+  ChatMessagePayload,
   GameActionRejectedPayload,
   GameActionRejectionReason,
   GameResult,
@@ -11,7 +12,8 @@ import type {
   RematchStatePayload,
   Suit,
 } from '@blackjack/shared';
-import { useEffect, useState } from 'react';
+import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { socket } from '../shared/api/socket';
 
@@ -88,6 +90,51 @@ function DealerPanel({ dealer }: { dealer: PublicDealerState }) {
   );
 }
 
+interface ChatPanelProps {
+  input: string;
+  messages: ChatMessagePayload[];
+  selfSeat: MatchmakingMatchedPayload['seat'];
+  onInputChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}
+
+function ChatPanel({
+  input,
+  messages,
+  selfSeat,
+  onInputChange,
+  onSubmit,
+}: ChatPanelProps) {
+  return (
+    <section className="rounded-xl border border-gray-700 bg-gray-900 p-4">
+      <h2 className="mb-3 text-[1.5em] font-bold">Chat</h2>
+      <div className="mb-3 grid gap-2" aria-live="polite">
+        {messages.map((message, index) => (
+          <p className="m-0 break-words" key={`${message.sender}:${index}`}>
+            {message.sender === selfSeat ? 'Self' : 'Opponent'}: {message.text}
+          </p>
+        ))}
+      </div>
+      <form className="grid grid-cols-[1fr_auto] gap-2" onSubmit={onSubmit}>
+        <input
+          aria-label="메시지"
+          className="min-w-0 rounded-[10px] border border-gray-600 bg-gray-800 px-3 py-2 text-gray-50"
+          maxLength={CHAT_MESSAGE_MAX_LENGTH}
+          onChange={(event) => onInputChange(event.target.value)}
+          type="text"
+          value={input}
+        />
+        <button
+          className="cursor-pointer rounded-[10px] border-0 bg-blue-600 px-4 py-2 font-bold text-white"
+          type="submit"
+        >
+          전송
+        </button>
+      </form>
+    </section>
+  );
+}
+
 export function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
   const [matchmakingStatus, setMatchmakingStatus] =
@@ -102,6 +149,9 @@ export function App() {
     null,
   );
   const [newOpponentPending, setNewOpponentPending] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessagePayload[]>([]);
+  const matchRef = useRef<MatchmakingMatchedPayload | null>(null);
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -116,6 +166,9 @@ export function App() {
       setRematchPending(false);
       setRematchState(null);
       setNewOpponentPending(false);
+      setChatInput('');
+      setChatMessages([]);
+      matchRef.current = null;
     };
     const handleWaiting = () => {
       setMatchmakingStatus('waiting');
@@ -127,10 +180,14 @@ export function App() {
       setRematchPending(false);
       setRematchState(null);
       setNewOpponentPending(false);
+      setChatInput('');
+      setChatMessages([]);
+      matchRef.current = null;
     };
     const handleMatched = (payload: MatchmakingMatchedPayload) => {
       setMatchmakingStatus('matched');
       setMatch(payload);
+      matchRef.current = payload;
       setGameState(null);
       setActionPending(false);
       setActionError(null);
@@ -138,6 +195,8 @@ export function App() {
       setRematchPending(false);
       setRematchState(null);
       setNewOpponentPending(false);
+      setChatInput('');
+      setChatMessages([]);
     };
     const handleGameState = (payload: GameStatePayload) => {
       setGameState(payload);
@@ -161,6 +220,9 @@ export function App() {
       setRematchPending(false);
       setRematchState(null);
       setNewOpponentPending(false);
+      setChatInput('');
+      setChatMessages([]);
+      matchRef.current = null;
     };
     const handleOpponentLeft = () => {
       setMatchmakingStatus('idle');
@@ -172,10 +234,17 @@ export function App() {
       setRematchPending(false);
       setRematchState(null);
       setNewOpponentPending(false);
+      setChatInput('');
+      setChatMessages([]);
+      matchRef.current = null;
     };
     const handleRematchState = (payload: RematchStatePayload) => {
       setRematchPending(false);
       setRematchState(payload);
+    };
+    const handleChatMessage = (payload: ChatMessagePayload) => {
+      if (payload.roomId !== matchRef.current?.roomId) return;
+      setChatMessages((messages) => [...messages, payload]);
     };
 
     socket.on('connect', handleConnect);
@@ -187,6 +256,7 @@ export function App() {
     socket.on('game:action-rejected', handleActionRejected);
     socket.on('game:opponent-disconnected', handleOpponentDisconnected);
     socket.on('rematch:state', handleRematchState);
+    socket.on('chat:message', handleChatMessage);
     socket.connect();
 
     return () => {
@@ -199,6 +269,7 @@ export function App() {
       socket.off('game:action-rejected', handleActionRejected);
       socket.off('game:opponent-disconnected', handleOpponentDisconnected);
       socket.off('rematch:state', handleRematchState);
+      socket.off('chat:message', handleChatMessage);
       socket.disconnect();
     };
   }, []);
@@ -265,6 +336,19 @@ export function App() {
     setNewOpponentPending(true);
     socket.emit('matchmaking:new-opponent');
   };
+  const handleChatSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (
+      !chatInput.trim() ||
+      chatInput.length > CHAT_MESSAGE_MAX_LENGTH ||
+      !match
+    ) {
+      return;
+    }
+
+    socket.emit('chat:send', { text: chatInput });
+    setChatInput('');
+  };
 
   return (
     <main className="grid min-h-screen place-items-center p-6">
@@ -307,6 +391,13 @@ export function App() {
             <DealerPanel dealer={gameState.dealer} />
             {opponent && <PlayerPanel title="Opponent" player={opponent} />}
             {self && <PlayerPanel title="Self" player={self} />}
+            <ChatPanel
+              input={chatInput}
+              messages={chatMessages}
+              onInputChange={setChatInput}
+              onSubmit={handleChatSubmit}
+              selfSeat={match.seat}
+            />
             <div className="grid grid-cols-2 gap-3">
               <button
                 className="cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"

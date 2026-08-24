@@ -2,6 +2,18 @@ export type MatchmakingStatus = 'idle' | 'waiting' | 'matched';
 
 export type PlayerSeat = 'player1' | 'player2';
 
+export const CHAT_MESSAGE_MAX_LENGTH = 200;
+
+export interface ChatSendPayload {
+  text: string;
+}
+
+export interface ChatMessagePayload {
+  roomId: string;
+  sender: PlayerSeat;
+  text: string;
+}
+
 export type Suit = 'clubs' | 'diamonds' | 'hearts' | 'spades';
 
 export type Rank =
@@ -97,6 +109,7 @@ export interface ServerToClientEvents {
   'game:action-rejected': (payload: GameActionRejectedPayload) => void;
   'game:opponent-disconnected': (payload: OpponentDisconnectedPayload) => void;
   'rematch:state': (payload: RematchStatePayload) => void;
+  'chat:message': (payload: ChatMessagePayload) => void;
 }
 
 export interface ClientToServerEvents {
@@ -105,4 +118,5 @@ export interface ClientToServerEvents {
   'player:hit': () => void;
   'player:stand': () => void;
   'rematch:accept': () => void;
+  'chat:send': (payload: ChatSendPayload) => void;
 }

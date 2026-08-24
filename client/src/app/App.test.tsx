@@ -521,6 +521,152 @@ describe('new opponent', () => {
   );
 });
 
+describe('room chat', () => {
+  it('shows chat controls only inside a matched game', () => {
+    renderMatched();
+    expect(screen.queryByRole('heading', { name: 'Chat' })).not.toBeInTheDocument();
+
+    serverEmit('game:state', gameState());
+
+    expect(screen.getByRole('heading', { name: 'Chat' })).toBeVisible();
+    expect(screen.getByRole('textbox', { name: '메시지' })).toHaveAttribute(
+      'maxlength',
+      '200',
+    );
+    expect(screen.getByRole('button', { name: '전송' })).toBeVisible();
+  });
+
+  it('sends text exactly once, clears the input, and does not append optimistically', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    socketMock.emit.mockClear();
+    const input = screen.getByRole('textbox', { name: '메시지' });
+
+    fireEvent.change(input, { target: { value: '안녕하세요' } });
+    fireEvent.click(screen.getByRole('button', { name: '전송' }));
+
+    expect(socketMock.emit).toHaveBeenCalledTimes(1);
+    expect(socketMock.emit).toHaveBeenCalledWith('chat:send', {
+      text: '안녕하세요',
+    });
+    expect(input).toHaveValue('');
+    expect(screen.queryByText('Self: 안녕하세요')).not.toBeInTheDocument();
+  });
+
+  it('does not send whitespace-only input', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    socketMock.emit.mockClear();
+
+    fireEvent.change(screen.getByRole('textbox', { name: '메시지' }), {
+      target: { value: '   ' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '전송' }));
+
+    expect(socketMock.emit).not.toHaveBeenCalled();
+  });
+
+  it('appends canonical server messages with Self and Opponent labels', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+
+    serverEmit('chat:message', {
+      roomId: playerOneMatch.roomId,
+      sender: 'player1',
+      text: '안녕하세요',
+    });
+    serverEmit('chat:message', {
+      roomId: playerOneMatch.roomId,
+      sender: 'player2',
+      text: '반갑습니다',
+    });
+
+    expect(screen.getByText('Self: 안녕하세요')).toBeVisible();
+    expect(screen.getByText('Opponent: 반갑습니다')).toBeVisible();
+  });
+
+  it('ignores a late message from another room', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+
+    serverEmit('chat:message', {
+      roomId: 'game:old-room',
+      sender: 'player1',
+      text: 'old message',
+    });
+
+    expect(screen.queryByText(/old message/)).not.toBeInTheDocument();
+  });
+
+  it('keeps messages when a rematch game state starts in the same room', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('chat:message', {
+      roomId: playerOneMatch.roomId,
+      sender: 'player2',
+      text: '한 판 더?',
+    });
+
+    serverEmit('game:state', gameState({ phase: 'player2' }));
+
+    expect(screen.getByText('Opponent: 한 판 더?')).toBeVisible();
+  });
+
+  it.each([
+    {
+      lifecycle: 'matchmaking:waiting',
+      trigger: () => serverEmit('matchmaking:waiting'),
+    },
+    {
+      lifecycle: 'new matchmaking:matched',
+      trigger: () =>
+        serverEmit('matchmaking:matched', {
+          roomId: 'game:new-room',
+          seat: 'player2',
+        }),
+    },
+    {
+      lifecycle: 'matchmaking:opponent-left',
+      trigger: () =>
+        serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId }),
+    },
+    {
+      lifecycle: 'game:opponent-disconnected',
+      trigger: () =>
+        serverEmit('game:opponent-disconnected', {
+          roomId: playerOneMatch.roomId,
+        }),
+    },
+    {
+      lifecycle: 'self disconnect',
+      trigger: () => {
+        socketMock.connected = false;
+        act(() => socketMock.serverEmit('disconnect', 'transport close'));
+      },
+    },
+  ])('clears messages and input on $lifecycle', ({ trigger }) => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('chat:message', {
+      roomId: playerOneMatch.roomId,
+      sender: 'player1',
+      text: 'remove me',
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: '메시지' }), {
+      target: { value: 'draft' },
+    });
+    expect(screen.getByText('Self: remove me')).toBeVisible();
+
+    trigger();
+
+    expect(screen.queryByText('Self: remove me')).not.toBeInTheDocument();
+
+    if (screen.queryByRole('textbox', { name: '메시지' })) {
+      expect(screen.getByRole('textbox', { name: '메시지' })).toHaveValue('');
+    }
+  });
+});
+
 describe('disconnect', () => {
   it('clears match, game state, pending action, and action error', () => {
     renderMatched();
