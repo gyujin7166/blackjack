@@ -115,7 +115,7 @@ export function GameTableHud({
             <h2 className="mb-2 text-sm font-bold">Chat</h2>
             <div
               aria-live="polite"
-              className="mb-2 max-h-20 space-y-1 overflow-y-auto text-xs sm:max-h-28"
+              className="mb-2 max-h-10 space-y-1 overflow-y-auto text-xs sm:max-h-28"
             >
               {chatMessages.map((message, index) => (
                 <p className="break-words" key={`${message.sender}:${index}`}>
