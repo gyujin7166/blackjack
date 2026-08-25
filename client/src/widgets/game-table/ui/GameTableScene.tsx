@@ -8,8 +8,10 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
+import { GameTableHud, type GameTableHudProps } from './GameTableHud';
 
-interface GameTableSceneProps {
+interface GameTableSceneProps
+  extends Omit<GameTableHudProps, 'gameState' | 'selfSeat'> {
   gameState: GameStatePayload;
   selfSeat: PlayerSeat;
 }
@@ -116,19 +118,23 @@ function Table() {
   );
 }
 
-export function GameTableScene({ gameState, selfSeat }: GameTableSceneProps) {
+export function GameTableScene({
+  gameState,
+  selfSeat,
+  ...hudProps
+}: GameTableSceneProps) {
   const self = gameState[selfSeat];
   const opponent = selfSeat === 'player1'
     ? gameState.player2
     : gameState.player1;
 
   return (
-    <div
-      aria-label="현재 블랙잭 테이블의 3D 보기"
-      className="h-[350px] w-full overflow-hidden rounded-2xl border border-emerald-900 bg-[#06140f] sm:h-[470px]"
-      role="img"
+    <section
+      aria-label="블랙잭 게임 테이블"
+      className="relative h-[540px] w-full overflow-hidden rounded-2xl border border-emerald-900 bg-[#06140f] sm:h-[620px]"
     >
       <Canvas
+        aria-hidden="true"
         camera={{ fov: 42, near: 0.1, far: 50, position: [0, 8.1, 9.2] }}
         dpr={[1, 1.5]}
         frameloop="demand"
@@ -145,6 +151,7 @@ export function GameTableScene({ gameState, selfSeat }: GameTableSceneProps) {
         <PlayerHand cards={self.hand} position={[0, 0.38, 2.48]} />
         <VisualDeck />
       </Canvas>
-    </div>
+      <GameTableHud gameState={gameState} selfSeat={selfSeat} {...hudProps} />
+    </section>
   );
 }
