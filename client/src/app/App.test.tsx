@@ -7,7 +7,7 @@ import type {
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { socketMock, handlers } = vi.hoisted(() => {
+const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
   type Handler = (...args: unknown[]) => void;
   const handlers = new Map<string, Set<Handler>>();
   const socketMock = {
@@ -29,10 +29,16 @@ const { socketMock, handlers } = vi.hoisted(() => {
       handlers.get(event)?.forEach((handler) => handler(payload));
     },
   };
-  return { socketMock, handlers };
+  return { socketMock, handlers, gameTableSceneMock: vi.fn() };
 });
 
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
+vi.mock('../widgets/game-table/ui/GameTableScene', () => ({
+  GameTableScene: (props: unknown) => {
+    gameTableSceneMock(props);
+    return <div data-testid="game-table-scene" />;
+  },
+}));
 
 import { App } from './App';
 
@@ -154,6 +160,55 @@ describe('game state', () => {
     expect(within(dealer).getByText('Hidden')).toBeVisible();
     expect(within(dealer).getByText('Dealer score: ?')).toBeVisible();
     expect(dealer).not.toHaveTextContent('undefined');
+  });
+});
+
+describe('3D game table', () => {
+  it('does not render before the first game state arrives', () => {
+    renderMatched();
+
+    expect(screen.queryByTestId('game-table-scene')).not.toBeInTheDocument();
+    expect(gameTableSceneMock).not.toHaveBeenCalled();
+  });
+
+  it('renders when a matched game state arrives', () => {
+    renderMatched();
+
+    serverEmit('game:state', gameState());
+
+    expect(screen.getByTestId('game-table-scene')).toBeVisible();
+  });
+
+  it('passes the current matched seat as selfSeat', () => {
+    renderMatched({ ...playerOneMatch, seat: 'player2' });
+
+    serverEmit('game:state', gameState());
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ selfSeat: 'player2' }),
+    );
+  });
+
+  it('passes the latest game state to the scene', () => {
+    renderMatched();
+    const initialState = gameState();
+    const latestState = gameState({
+      player1: {
+        ...initialState.player1,
+        hand: [
+          ...initialState.player1.hand,
+          { rank: '6', suit: 'diamonds' },
+        ],
+        score: 17,
+      },
+    });
+
+    serverEmit('game:state', initialState);
+    serverEmit('game:state', latestState);
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ gameState: latestState }),
+    );
   });
 });
 
