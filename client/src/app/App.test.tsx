@@ -83,7 +83,10 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe('matchmaking', () => {
   it('keeps the existing start button behavior', () => {
@@ -519,6 +522,174 @@ describe('new opponent', () => {
       expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeEnabled();
     },
   );
+});
+
+describe('turn timer', () => {
+  it.each([
+    { player: 'player1', label: '내 턴 남은 시간: 30초' },
+    { player: 'player2', label: '상대 턴 남은 시간: 30초' },
+  ] as const)('shows $label for $player', ({ player, label }) => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player,
+      durationMs: 30_000,
+    });
+
+    expect(screen.getByText(label)).toBeVisible();
+  });
+
+  it('counts down from durationMs using the local display clock', () => {
+    vi.useFakeTimers();
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player1',
+      durationMs: 30_000,
+    });
+
+    act(() => vi.advanceTimersByTime(1_100));
+
+    expect(screen.getByText('내 턴 남은 시간: 29초')).toBeVisible();
+  });
+
+  it('ignores a timer from another room', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+
+    serverEmit('turn:timer', {
+      roomId: 'game:old-room',
+      player: 'player1',
+      durationMs: 30_000,
+    });
+
+    expect(screen.queryByText(/턴 남은 시간/)).not.toBeInTheDocument();
+  });
+
+  it('clears an old timer on game state and shows the following new timer', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player1',
+      durationMs: 30_000,
+    });
+    expect(screen.getByText('내 턴 남은 시간: 30초')).toBeVisible();
+
+    serverEmit('game:state', gameState({ phase: 'player2' }));
+    expect(screen.queryByText(/턴 남은 시간/)).not.toBeInTheDocument();
+
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player2',
+      durationMs: 30_000,
+    });
+    expect(screen.getByText('상대 턴 남은 시간: 30초')).toBeVisible();
+  });
+
+  it('shows zero without emitting player:stand from the client', () => {
+    vi.useFakeTimers();
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player1',
+      durationMs: 1_000,
+    });
+    socketMock.emit.mockClear();
+
+    act(() => vi.advanceTimersByTime(1_500));
+
+    expect(screen.getByText('내 턴 남은 시간: 0초')).toBeVisible();
+    expect(socketMock.emit).not.toHaveBeenCalledWith('player:stand');
+  });
+
+  it('keeps the timer when an action is rejected', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player1',
+      durationMs: 30_000,
+    });
+
+    serverEmit('game:action-rejected', {
+      action: 'hit',
+      reason: 'not_your_turn',
+    });
+
+    expect(screen.getByText('내 턴 남은 시간: 30초')).toBeVisible();
+  });
+
+  it.each([
+    {
+      lifecycle: 'matchmaking:waiting',
+      trigger: () => serverEmit('matchmaking:waiting'),
+    },
+    {
+      lifecycle: 'new matchmaking:matched',
+      trigger: () =>
+        serverEmit('matchmaking:matched', {
+          roomId: 'game:new-room',
+          seat: 'player2',
+        }),
+    },
+    {
+      lifecycle: 'matchmaking:opponent-left',
+      trigger: () =>
+        serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId }),
+    },
+    {
+      lifecycle: 'game:opponent-disconnected',
+      trigger: () =>
+        serverEmit('game:opponent-disconnected', {
+          roomId: playerOneMatch.roomId,
+        }),
+    },
+    {
+      lifecycle: 'self disconnect',
+      trigger: () => {
+        socketMock.connected = false;
+        act(() => socketMock.serverEmit('disconnect', 'transport close'));
+      },
+    },
+  ])('removes the timer on $lifecycle', ({ trigger }) => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player1',
+      durationMs: 30_000,
+    });
+    expect(screen.getByText(/턴 남은 시간/)).toBeVisible();
+
+    trigger();
+
+    expect(screen.queryByText(/턴 남은 시간/)).not.toBeInTheDocument();
+  });
+
+  it('uses the new rematch timer while keeping chat messages', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('chat:message', {
+      roomId: playerOneMatch.roomId,
+      sender: 'player2',
+      text: '한 판 더?',
+    });
+
+    serverEmit('game:state', gameState({ phase: 'player2' }));
+    serverEmit('turn:timer', {
+      roomId: playerOneMatch.roomId,
+      player: 'player2',
+      durationMs: 30_000,
+    });
+
+    expect(screen.getByText('상대 턴 남은 시간: 30초')).toBeVisible();
+    expect(screen.getByText('Opponent: 한 판 더?')).toBeVisible();
+  });
 });
 
 describe('room chat', () => {

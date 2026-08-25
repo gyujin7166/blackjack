@@ -26,12 +26,19 @@ export interface SocketHandlerOptions {
     options?: Pick<GameSessionOptions, 'firstPlayer'>,
   ) => GameSession;
   logger?: Pick<Console, 'log'>;
+  turnTimeoutMs?: number;
 }
 
 export interface SocketServerState {
   activeMatches: Map<string, MatchmakingMatchedPayload>;
   gameSessions: Map<string, GameSession>;
   rematchAcceptances: Map<string, Set<PlayerSeat>>;
+}
+
+interface TurnTimerEntry {
+  handle: ReturnType<typeof setTimeout>;
+  player: PlayerSeat;
+  session: GameSession;
 }
 
 export function registerSocketHandlers(
@@ -44,6 +51,51 @@ export function registerSocketHandlers(
   const rematchAcceptances = new Map<string, Set<PlayerSeat>>();
   const sessionFactory = options.createSession ?? createGameSession;
   const logger = options.logger ?? console;
+  const turnTimeoutMs = options.turnTimeoutMs ?? 30_000;
+  const turnTimers = new Map<string, TurnTimerEntry>();
+
+  const clearTurnTimer = (roomId: string) => {
+    const timer = turnTimers.get(roomId);
+    if (!timer) return;
+
+    clearTimeout(timer.handle);
+    turnTimers.delete(roomId);
+  };
+
+  const startTurnTimer = (roomId: string, session: GameSession) => {
+    clearTurnTimer(roomId);
+    if (session.phase !== 'player1' && session.phase !== 'player2') return;
+
+    const player = session.phase;
+    const entry: TurnTimerEntry = {
+      handle: setTimeout(() => {
+        if (turnTimers.get(roomId) !== entry) return;
+        turnTimers.delete(roomId);
+
+        if (
+          gameSessions.get(roomId) !== session ||
+          entry.session !== session ||
+          session.phase !== player ||
+          entry.player !== player
+        ) {
+          return;
+        }
+
+        session.stand();
+        io.to(roomId).emit('game:state', createPublicGameState(roomId, session));
+        startTurnTimer(roomId, session);
+      }, turnTimeoutMs),
+      player,
+      session,
+    };
+
+    turnTimers.set(roomId, entry);
+    io.to(roomId).emit('turn:timer', {
+      roomId,
+      player,
+      durationMs: turnTimeoutMs,
+    });
+  };
 
   io.on('connection', (socket) => {
     logger.log(`connected: ${socket.id}`);
@@ -73,6 +125,8 @@ export function registerSocketHandlers(
         return;
       }
 
+      clearTurnTimer(match.roomId);
+
       if (action === 'hit') {
         session.hit();
       } else {
@@ -82,6 +136,7 @@ export function registerSocketHandlers(
         'game:state',
         createPublicGameState(match.roomId, session),
       );
+      startTurnTimer(match.roomId, session);
     };
 
     const joinMatchmaking = () => {
@@ -128,6 +183,7 @@ export function registerSocketHandlers(
       opponentSocket.emit('matchmaking:matched', playerOneMatch);
       socket.emit('matchmaking:matched', playerTwoMatch);
       io.to(roomId).emit('game:state', createPublicGameState(roomId, session));
+      startTurnTimer(roomId, session);
 
       logger.log(`matched: ${opponentSocketId} + ${socket.id} -> ${roomId}`);
     };
@@ -161,6 +217,7 @@ export function registerSocketHandlers(
       }
       gameSessions.delete(match.roomId);
       rematchAcceptances.delete(match.roomId);
+      clearTurnTimer(match.roomId);
 
       joinMatchmaking();
     });
@@ -200,12 +257,14 @@ export function registerSocketHandlers(
         const nextFirstPlayer =
           session.firstPlayer === 'player1' ? 'player2' : 'player1';
         const nextSession = sessionFactory({ firstPlayer: nextFirstPlayer });
+        clearTurnTimer(match.roomId);
         gameSessions.set(match.roomId, nextSession);
         rematchAcceptances.delete(match.roomId);
         io.to(match.roomId).emit(
           'game:state',
           createPublicGameState(match.roomId, nextSession),
         );
+        startTurnTimer(match.roomId, nextSession);
       }
     });
 
@@ -230,6 +289,7 @@ export function registerSocketHandlers(
         }
         gameSessions.delete(match.roomId);
         rematchAcceptances.delete(match.roomId);
+        clearTurnTimer(match.roomId);
       }
 
       activeMatches.delete(socket.id);
