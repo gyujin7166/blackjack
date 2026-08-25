@@ -1,16 +1,11 @@
 import type {
-  Card,
   ChatMessagePayload,
   GameActionRejectedPayload,
   GameActionRejectionReason,
-  GameResult,
   GameStatePayload,
-  PublicDealerState,
   MatchmakingMatchedPayload,
   MatchmakingStatus,
-  PublicPlayerState,
   RematchStatePayload,
-  Suit,
   TurnTimerPayload,
 } from '@blackjack/shared';
 import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
@@ -19,123 +14,12 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { socket } from '../shared/api/socket';
 import { GameTableScene } from '../widgets/game-table/ui/GameTableScene';
 
-const suitSymbols: Record<Suit, string> = {
-  clubs: '♣',
-  diamonds: '♦',
-  hearts: '♥',
-  spades: '♠',
-};
-
 const rejectionMessages: Record<GameActionRejectionReason, string> = {
   not_in_game: '진행 중인 게임이 없습니다.',
   not_your_turn: '현재 내 차례가 아닙니다.',
   game_finished: '이미 종료된 게임입니다.',
   game_unavailable: '게임을 사용할 수 없습니다.',
 };
-
-const resultLabels: Record<GameResult, string> = {
-  win: '승리',
-  lose: '패배',
-  push: '무승부',
-};
-
-function PlayerPanel({ title, player }: { title: string; player: PublicPlayerState }) {
-  return (
-    <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
-      <h2 className="mb-2 text-[1.5em] font-bold">{title}</h2>
-      <p className="mb-2">Score: {player.score}</p>
-      <p className="mb-2">Status: {player.status}</p>
-      {player.result && (
-        <p className="mb-2">Result: {resultLabels[player.result]}</p>
-      )}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {player.hand.map((card: Card, index) => (
-          <span
-            className="grid min-h-[76px] min-w-[58px] place-items-center rounded-lg bg-gray-50 p-2 text-xl font-extrabold text-gray-900"
-            key={`${card.suit}:${card.rank}:${index}`}
-          >
-            {card.rank}
-            {suitSymbols[card.suit]}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function DealerPanel({ dealer }: { dealer: PublicDealerState }) {
-  return (
-    <div className="rounded-xl border border-gray-700 bg-gray-900 p-4">
-      <h2 className="mb-2 text-[1.5em] font-bold">Dealer</h2>
-      <p className="mb-2">Dealer score: {dealer.score ?? '?'}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {dealer.hand.map((card, index) =>
-          'hidden' in card ? (
-            <span
-              className="grid min-h-[76px] min-w-[58px] place-items-center rounded-lg bg-blue-700 p-2 text-[13px] font-extrabold text-blue-50"
-              key={`hidden:${index}`}
-            >
-              Hidden
-            </span>
-          ) : (
-            <span
-              className="grid min-h-[76px] min-w-[58px] place-items-center rounded-lg bg-gray-50 p-2 text-xl font-extrabold text-gray-900"
-              key={`${card.suit}:${card.rank}:${index}`}
-            >
-              {card.rank}
-              {suitSymbols[card.suit]}
-            </span>
-          ),
-        )}
-      </div>
-    </div>
-  );
-}
-
-interface ChatPanelProps {
-  input: string;
-  messages: ChatMessagePayload[];
-  selfSeat: MatchmakingMatchedPayload['seat'];
-  onInputChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}
-
-function ChatPanel({
-  input,
-  messages,
-  selfSeat,
-  onInputChange,
-  onSubmit,
-}: ChatPanelProps) {
-  return (
-    <section className="rounded-xl border border-gray-700 bg-gray-900 p-4">
-      <h2 className="mb-3 text-[1.5em] font-bold">Chat</h2>
-      <div className="mb-3 grid gap-2" aria-live="polite">
-        {messages.map((message, index) => (
-          <p className="m-0 break-words" key={`${message.sender}:${index}`}>
-            {message.sender === selfSeat ? 'Self' : 'Opponent'}: {message.text}
-          </p>
-        ))}
-      </div>
-      <form className="grid grid-cols-[1fr_auto] gap-2" onSubmit={onSubmit}>
-        <input
-          aria-label="메시지"
-          className="min-w-0 rounded-[10px] border border-gray-600 bg-gray-800 px-3 py-2 text-gray-50"
-          maxLength={CHAT_MESSAGE_MAX_LENGTH}
-          onChange={(event) => onInputChange(event.target.value)}
-          type="text"
-          value={input}
-        />
-        <button
-          className="cursor-pointer rounded-[10px] border-0 bg-blue-600 px-4 py-2 font-bold text-white"
-          type="submit"
-        >
-          전송
-        </button>
-      </form>
-    </section>
-  );
-}
 
 export function App() {
   const [isConnected, setIsConnected] = useState(socket.connected);
@@ -334,13 +218,6 @@ export function App() {
       : matchmakingStatus === 'matched'
         ? '매칭 완료'
         : '게임 시작';
-  const self = match && gameState ? gameState[match.seat] : null;
-  const opponent =
-    match && gameState
-      ? match.seat === 'player1'
-        ? gameState.player2
-        : gameState.player1
-      : null;
   const canAct = Boolean(
     isConnected &&
       match &&
@@ -431,79 +308,28 @@ export function App() {
         )}
 
         {match && gameState && (
-          <section className="mt-6 grid gap-4">
-            <GameTableScene gameState={gameState} selfSeat={match.seat} />
-            <DealerPanel dealer={gameState.dealer} />
-            {opponent && <PlayerPanel title="Opponent" player={opponent} />}
-            {self && <PlayerPanel title="Self" player={self} />}
-            {turnTimer && (
-              <p className="m-0 rounded-lg bg-indigo-950 p-3 font-bold text-indigo-100">
-                {turnTimer.player === match.seat ? '내' : '상대'} 턴 남은 시간:{' '}
-                {turnTimerSeconds}초
-              </p>
-            )}
-            <ChatPanel
-              input={chatInput}
-              messages={chatMessages}
-              onInputChange={setChatInput}
-              onSubmit={handleChatSubmit}
+          <div className="mt-6">
+            <GameTableScene
+              actionError={actionError}
+              canAct={canAct}
+              chatInput={chatInput}
+              chatMessages={chatMessages}
+              gameState={gameState}
+              newOpponentPending={newOpponentPending}
+              onChatInputChange={setChatInput}
+              onChatSubmit={handleChatSubmit}
+              onHit={() => handleAction('hit')}
+              onNewOpponent={handleNewOpponent}
+              onRematch={handleRematch}
+              onStand={() => handleAction('stand')}
+              opponentAccepted={opponentAccepted}
+              rematchPending={rematchPending}
+              selfAccepted={selfAccepted}
               selfSeat={match.seat}
+              turnTimer={turnTimer}
+              turnTimerSeconds={turnTimerSeconds}
             />
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                className="cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-                disabled={!canAct}
-                onClick={() => handleAction('hit')}
-              >
-                Hit
-              </button>
-              <button
-                className="cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-                type="button"
-                disabled={!canAct}
-                onClick={() => handleAction('stand')}
-              >
-                Stand
-              </button>
-            </div>
-            {gameState.phase === 'finished' && (
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  className="cursor-pointer rounded-[10px] border-0 bg-amber-500 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-                  type="button"
-                  disabled={rematchPending || newOpponentPending || selfAccepted}
-                  onClick={handleRematch}
-                >
-                  재대결
-                </button>
-                <button
-                  className="cursor-pointer rounded-[10px] border-0 bg-emerald-600 px-[18px] py-3 font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
-                  type="button"
-                  disabled={newOpponentPending || rematchPending}
-                  onClick={handleNewOpponent}
-                >
-                  새 상대 찾기
-                </button>
-              </div>
-            )}
-            {gameState.phase === 'finished' && selfAccepted && (
-              <div className="m-0 rounded-lg bg-blue-900 p-3 text-blue-100">
-                <p className="my-1">재대결 요청 완료</p>
-                <p className="my-1">상대 플레이어의 선택을 기다리고 있습니다.</p>
-              </div>
-            )}
-            {gameState.phase === 'finished' && opponentAccepted && !selfAccepted && (
-              <p className="m-0 rounded-lg bg-blue-900 p-3 text-blue-100">
-                상대 플레이어가 재대결을 요청했습니다.
-              </p>
-            )}
-            {actionError && (
-              <p className="m-0 rounded-lg bg-red-900 p-3 text-red-200" role="alert">
-                {actionError}
-              </p>
-            )}
-          </section>
+          </div>
         )}
       </section>
     </main>

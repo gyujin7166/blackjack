@@ -4,6 +4,7 @@ import type {
   MatchmakingMatchedPayload,
   ServerToClientEvents,
 } from '@blackjack/shared';
+import type { GameTableHudProps } from '../widgets/game-table/ui/GameTableHud';
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -33,12 +34,20 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
 });
 
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
-vi.mock('../widgets/game-table/ui/GameTableScene', () => ({
-  GameTableScene: (props: unknown) => {
-    gameTableSceneMock(props);
-    return <div data-testid="game-table-scene" />;
-  },
-}));
+vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
+  const { GameTableHud } = await import('../widgets/game-table/ui/GameTableHud');
+
+  return {
+    GameTableScene: (props: GameTableHudProps) => {
+      gameTableSceneMock(props);
+      return (
+        <div data-testid="game-table-scene">
+          <GameTableHud {...props} />
+        </div>
+      );
+    },
+  };
+});
 
 import { App } from './App';
 
@@ -131,33 +140,31 @@ describe('game state', () => {
   it.each([
     {
       seat: 'player1',
-      selfCard: 'A♠',
-      opponentCard: 'K♣',
+      selfScore: 11,
+      opponentScore: 10,
     },
     {
       seat: 'player2',
-      selfCard: 'K♣',
-      opponentCard: 'A♠',
+      selfScore: 10,
+      opponentScore: 11,
     },
-  ] as const)('maps $seat to self and opponent', ({ seat, selfCard, opponentCard }) => {
+  ] as const)('maps $seat to self and opponent', ({ seat, selfScore, opponentScore }) => {
     renderMatched({ ...playerOneMatch, seat });
 
     serverEmit('game:state', gameState());
 
     const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
     const opponent = screen.getByRole('heading', { name: 'Opponent' }).parentElement!;
-    expect(within(self).getByText(selfCard)).toBeVisible();
-    expect(within(opponent).getByText(opponentCard)).toBeVisible();
+    expect(within(self).getByText(`Score: ${selfScore}`)).toBeVisible();
+    expect(within(opponent).getByText(`Score: ${opponentScore}`)).toBeVisible();
   });
 
-  it('renders the dealer hole card as Hidden and does not infer a score', () => {
+  it('keeps the dealer score unknown while the hole card is hidden', () => {
     renderMatched();
 
     serverEmit('game:state', gameState());
 
     const dealer = screen.getByRole('heading', { name: 'Dealer' }).parentElement!;
-    expect(within(dealer).getByText('10♥')).toBeVisible();
-    expect(within(dealer).getByText('Hidden')).toBeVisible();
     expect(within(dealer).getByText('Dealer score: ?')).toBeVisible();
     expect(dealer).not.toHaveTextContent('undefined');
   });
@@ -208,6 +215,77 @@ describe('3D game table', () => {
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ gameState: latestState }),
+    );
+  });
+
+  it('passes canAct and action callbacks that preserve socket intents', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+
+    let sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    expect(sceneProps.canAct).toBe(true);
+    act(() => sceneProps.onHit());
+    expect(socketMock.emit).toHaveBeenCalledWith('player:hit');
+
+    serverEmit('game:state', gameState());
+    sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    act(() => sceneProps.onStand());
+    expect(socketMock.emit).toHaveBeenCalledWith('player:stand');
+  });
+
+  it('passes chat state and callbacks to the scene', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('chat:message', {
+      roomId: 'game:test-room',
+      sender: 'player2',
+      text: 'HUD에서 만나요',
+    });
+
+    let sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    expect(sceneProps.chatMessages).toEqual([
+      expect.objectContaining({ text: 'HUD에서 만나요' }),
+    ]);
+    act(() => sceneProps.onChatInputChange('답장'));
+    sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    expect(sceneProps.chatInput).toBe('답장');
+    expect(sceneProps.onChatSubmit).toEqual(expect.any(Function));
+  });
+
+  it('passes timer information to the scene', () => {
+    renderMatched();
+    serverEmit('game:state', gameState());
+    serverEmit('turn:timer', {
+      roomId: 'game:test-room',
+      player: 'player1',
+      durationMs: 30_000,
+    });
+
+    const sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    expect(sceneProps.turnTimer).toEqual(
+      expect.objectContaining({ player: 'player1', durationMs: 30_000 }),
+    );
+    expect(sceneProps.turnTimerSeconds).toBe(30);
+  });
+
+  it('passes finished choice state and callbacks to the scene', () => {
+    renderMatched();
+    const finishedState = gameState({
+      phase: 'finished',
+      player1: { ...gameState().player1, result: 'win' },
+    });
+    serverEmit('game:state', finishedState);
+
+    const sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    expect(sceneProps).toEqual(
+      expect.objectContaining({
+        rematchPending: false,
+        newOpponentPending: false,
+        selfAccepted: false,
+        opponentAccepted: false,
+        onRematch: expect.any(Function),
+        onNewOpponent: expect.any(Function),
+      }),
     );
   });
 });
@@ -326,12 +404,16 @@ describe('finished game', () => {
     const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
     const dealer = screen.getByRole('heading', { name: 'Dealer' }).parentElement!;
     expect(within(self).getByText(`Result: ${label}`)).toBeVisible();
-    expect(within(dealer).getByText('10♥')).toBeVisible();
-    expect(within(dealer).getByText('K♣')).toBeVisible();
     expect(within(dealer).getByText('Dealer score: 20')).toBeVisible();
-    expect(within(dealer).queryByText('Hidden')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Hit' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Stand' })).toBeDisabled();
+    expect(
+      (gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps).gameState
+        .dealer.hand,
+    ).toEqual([
+      { rank: '10', suit: 'hearts' },
+      { rank: 'K', suit: 'clubs' },
+    ]);
+    expect(screen.queryByRole('button', { name: 'Hit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stand' })).not.toBeInTheDocument();
   });
 });
 
