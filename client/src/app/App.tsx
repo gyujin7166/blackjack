@@ -17,6 +17,7 @@ import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { socket } from '../shared/api/socket';
+import { GameTableScene } from '../widgets/game-table/ui/GameTableScene';
 
 const suitSymbols: Record<Suit, string> = {
   clubs: '♣',
@@ -431,6 +432,7 @@ export function App() {
 
         {match && gameState && (
           <section className="mt-6 grid gap-4">
+            <GameTableScene gameState={gameState} selfSeat={match.seat} />
             <DealerPanel dealer={gameState.dealer} />
             {opponent && <PlayerPanel title="Opponent" player={opponent} />}
             {self && <PlayerPanel title="Self" player={self} />}
