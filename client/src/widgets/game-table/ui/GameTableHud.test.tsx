@@ -42,6 +42,7 @@ function props(overrides: Partial<GameTableHudProps> = {}): GameTableHudProps {
     selfAccepted: false,
     opponentAccepted: false,
     actionError: null,
+    dealerSequenceComplete: true,
     onHit: vi.fn(),
     onStand: vi.fn(),
     onChatInputChange: vi.fn(),
@@ -133,6 +134,62 @@ describe('GameTableHud', () => {
     expect(screen.getByText(label)).toBeVisible();
     expect(screen.queryByRole('button', { name: 'Hit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: '메시지' })).not.toBeInTheDocument();
+  });
+
+  it('hides canonical results and final dealer score during dealer sequence', () => {
+    const state = gameState({
+      phase: 'finished',
+      player1: { ...gameState().player1, result: 'win' },
+      player2: { ...gameState().player2, result: 'lose' },
+      dealer: {
+        hand: [
+          { rank: '10', suit: 'hearts' },
+          { rank: '9', suit: 'clubs' },
+        ],
+        score: 19,
+      },
+    });
+    render(<GameTableHud {...props({
+      dealerSequenceComplete: false,
+      gameState: state,
+      turnTimer: {
+        roomId: 'game:hud-test',
+        player: 'player1',
+        durationMs: 30_000,
+      },
+    })} />);
+
+    expect(screen.queryByRole('button', { name: 'Hit' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stand' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: '메시지' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/턴 남은 시간/)).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '게임 결과' })).not.toBeInTheDocument();
+    expect(screen.getByText('Dealer score: ?')).toBeVisible();
+    expect(screen.queryByText('Result: 승리')).not.toBeInTheDocument();
+    expect(screen.queryByText('Result: 패배')).not.toBeInTheDocument();
+  });
+
+  it('reveals canonical results when dealer sequence completes', () => {
+    const state = gameState({
+      phase: 'finished',
+      player1: { ...gameState().player1, result: 'win' },
+      player2: { ...gameState().player2, result: 'lose' },
+      dealer: {
+        hand: [
+          { rank: '10', suit: 'hearts' },
+          { rank: '9', suit: 'clubs' },
+        ],
+        score: 19,
+      },
+    });
+    render(<GameTableHud {...props({ gameState: state })} />);
+
+    expect(screen.getByRole('dialog', { name: '게임 결과' })).toBeVisible();
+    expect(screen.getByText('Dealer score: 19')).toBeVisible();
+    expect(screen.getByText('Result: 승리')).toBeVisible();
+    expect(screen.getByText('Result: 패배')).toBeVisible();
+    expect(screen.getByRole('button', { name: '재대결' })).toBeVisible();
+    expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeVisible();
   });
 
   it('shows rematch states inside the finished panel', () => {
