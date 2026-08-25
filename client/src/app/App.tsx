@@ -11,6 +11,7 @@ import type {
   PublicPlayerState,
   RematchStatePayload,
   Suit,
+  TurnTimerPayload,
 } from '@blackjack/shared';
 import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
@@ -151,7 +152,23 @@ export function App() {
   const [newOpponentPending, setNewOpponentPending] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessagePayload[]>([]);
+  const [turnTimer, setTurnTimer] = useState<TurnTimerPayload | null>(null);
+  const [turnTimerDeadline, setTurnTimerDeadline] = useState<number | null>(null);
+  const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
   const matchRef = useRef<MatchmakingMatchedPayload | null>(null);
+
+  useEffect(() => {
+    if (turnTimerDeadline === null) return;
+
+    const updateCountdown = () => {
+      setTurnTimerSeconds(
+        Math.max(0, Math.ceil((turnTimerDeadline - Date.now()) / 1_000)),
+      );
+    };
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 250);
+    return () => clearInterval(interval);
+  }, [turnTimerDeadline]);
 
   useEffect(() => {
     const handleConnect = () => setIsConnected(true);
@@ -168,6 +185,9 @@ export function App() {
       setNewOpponentPending(false);
       setChatInput('');
       setChatMessages([]);
+      setTurnTimer(null);
+      setTurnTimerDeadline(null);
+      setTurnTimerSeconds(0);
       matchRef.current = null;
     };
     const handleWaiting = () => {
@@ -182,6 +202,9 @@ export function App() {
       setNewOpponentPending(false);
       setChatInput('');
       setChatMessages([]);
+      setTurnTimer(null);
+      setTurnTimerDeadline(null);
+      setTurnTimerSeconds(0);
       matchRef.current = null;
     };
     const handleMatched = (payload: MatchmakingMatchedPayload) => {
@@ -197,6 +220,9 @@ export function App() {
       setNewOpponentPending(false);
       setChatInput('');
       setChatMessages([]);
+      setTurnTimer(null);
+      setTurnTimerDeadline(null);
+      setTurnTimerSeconds(0);
     };
     const handleGameState = (payload: GameStatePayload) => {
       setGameState(payload);
@@ -205,6 +231,9 @@ export function App() {
       setRematchPending(false);
       setRematchState(null);
       setNewOpponentPending(false);
+      setTurnTimer(null);
+      setTurnTimerDeadline(null);
+      setTurnTimerSeconds(0);
     };
     const handleActionRejected = (payload: GameActionRejectedPayload) => {
       setActionPending(false);
@@ -222,6 +251,9 @@ export function App() {
       setNewOpponentPending(false);
       setChatInput('');
       setChatMessages([]);
+      setTurnTimer(null);
+      setTurnTimerDeadline(null);
+      setTurnTimerSeconds(0);
       matchRef.current = null;
     };
     const handleOpponentLeft = () => {
@@ -236,6 +268,9 @@ export function App() {
       setNewOpponentPending(false);
       setChatInput('');
       setChatMessages([]);
+      setTurnTimer(null);
+      setTurnTimerDeadline(null);
+      setTurnTimerSeconds(0);
       matchRef.current = null;
     };
     const handleRematchState = (payload: RematchStatePayload) => {
@@ -245,6 +280,12 @@ export function App() {
     const handleChatMessage = (payload: ChatMessagePayload) => {
       if (payload.roomId !== matchRef.current?.roomId) return;
       setChatMessages((messages) => [...messages, payload]);
+    };
+    const handleTurnTimer = (payload: TurnTimerPayload) => {
+      if (payload.roomId !== matchRef.current?.roomId) return;
+      setTurnTimer(payload);
+      setTurnTimerDeadline(Date.now() + payload.durationMs);
+      setTurnTimerSeconds(Math.ceil(payload.durationMs / 1_000));
     };
 
     socket.on('connect', handleConnect);
@@ -257,6 +298,7 @@ export function App() {
     socket.on('game:opponent-disconnected', handleOpponentDisconnected);
     socket.on('rematch:state', handleRematchState);
     socket.on('chat:message', handleChatMessage);
+    socket.on('turn:timer', handleTurnTimer);
     socket.connect();
 
     return () => {
@@ -270,6 +312,7 @@ export function App() {
       socket.off('game:opponent-disconnected', handleOpponentDisconnected);
       socket.off('rematch:state', handleRematchState);
       socket.off('chat:message', handleChatMessage);
+      socket.off('turn:timer', handleTurnTimer);
       socket.disconnect();
     };
   }, []);
@@ -391,6 +434,12 @@ export function App() {
             <DealerPanel dealer={gameState.dealer} />
             {opponent && <PlayerPanel title="Opponent" player={opponent} />}
             {self && <PlayerPanel title="Self" player={self} />}
+            {turnTimer && (
+              <p className="m-0 rounded-lg bg-indigo-950 p-3 font-bold text-indigo-100">
+                {turnTimer.player === match.seat ? '내' : '상대'} 턴 남은 시간:{' '}
+                {turnTimerSeconds}초
+              </p>
+            )}
             <ChatPanel
               input={chatInput}
               messages={chatMessages}
