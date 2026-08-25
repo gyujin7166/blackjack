@@ -11,6 +11,7 @@ import type {
   OpponentLeftPayload,
   RematchStatePayload,
   ServerToClientEvents,
+  TurnTimerPayload,
 } from '@blackjack/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Server } from 'socket.io';
@@ -59,6 +60,7 @@ function onceEvent<T>(client: TestClient, event: string): Promise<T> {
 async function createFixture(
   deck = cards('2', '3', '10', '5', '6', '7', '8'),
   clientCount = 2,
+  turnTimeoutMs?: number,
 ) {
   const httpServer = createServer();
   const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer);
@@ -69,6 +71,7 @@ async function createFixture(
   const state = registerSocketHandlers(io, {
     createSession: sessionFactory,
     logger: { log: vi.fn() },
+    turnTimeoutMs,
   });
 
   await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
@@ -335,6 +338,259 @@ describe('Socket.IO game integration', () => {
 
     expect(JSON.stringify(session)).toBe(before);
     expect(unexpectedState).not.toHaveBeenCalled();
+  });
+});
+
+describe('server turn timer', () => {
+  it('broadcasts game state before the initial timer to both players', async () => {
+    const { clients } = await createFixture(undefined, 2, 180);
+    const eventsOne: string[] = [];
+    const eventsTwo: string[] = [];
+    clients[0].on('game:state', () => eventsOne.push('state'));
+    clients[0].on('turn:timer', () => eventsOne.push('timer'));
+    clients[1].on('game:state', () => eventsTwo.push('state'));
+    clients[1].on('turn:timer', () => eventsTwo.push('timer'));
+    const timerOne = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    const timerTwo = onceEvent<TurnTimerPayload>(clients[1], 'turn:timer');
+
+    const [match] = await matchClients(clients);
+    const [payloadOne, payloadTwo] = await Promise.all([timerOne, timerTwo]);
+
+    expect(payloadOne).toEqual({
+      roomId: match.roomId,
+      player: 'player1',
+      durationMs: 180,
+    });
+    expect(payloadTwo).toEqual(payloadOne);
+    expect(eventsOne.slice(0, 2)).toEqual(['state', 'timer']);
+    expect(eventsTwo.slice(0, 2)).toEqual(['state', 'timer']);
+  });
+
+  it('uses the actual initial phase after a natural blackjack skip', async () => {
+    const { clients } = await createFixture(
+      cards('A', '2', '10', 'K', '3', '7'),
+      2,
+      180,
+    );
+    const timer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+
+    await matchClients(clients);
+
+    expect((await timer).player).toBe('player2');
+  });
+
+  it('does not start a timer for an immediately finished session', async () => {
+    const { clients } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+      2,
+      80,
+    );
+    const timer = vi.fn();
+    clients[0].on('turn:timer', timer);
+    clients[1].on('turn:timer', timer);
+
+    await matchClients(clients);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+
+    expect(timer).not.toHaveBeenCalled();
+  });
+
+  it('automatically stands on timeout and starts the next player timer', async () => {
+    const { clients } = await createFixture(undefined, 2, 120);
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const timeoutState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const nextTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+
+    const [state, timer] = await Promise.all([timeoutState, nextTimer]);
+
+    expect(state.player1.status).toBe('stood');
+    expect(state.phase).toBe('player2');
+    expect(timer.player).toBe('player2');
+    expect(timer.durationMs).toBe(120);
+  });
+
+  it('resets the full timeout after a hit that keeps the same player turn', async () => {
+    const { clients, state } = await createFixture(undefined, 2, 180);
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    const [match] = await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    await new Promise((resolve) => setTimeout(resolve, 110));
+    const hitState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const resetTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+
+    clients[0].emit('player:hit');
+    const [, timer] = await Promise.all([hitState, resetTimer]);
+    expect(timer).toEqual({
+      roomId: match.roomId,
+      player: 'player1',
+      durationMs: 180,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(state.gameSessions.get(match.roomId)?.phase).toBe('player1');
+    expect(state.gameSessions.get(match.roomId)?.player1.status).toBe('playing');
+
+    const timeoutState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    expect((await timeoutState).player1.status).toBe('stood');
+  });
+
+  it('cancels the old timer on stand and starts a player2 timer', async () => {
+    const { clients } = await createFixture(undefined, 2, 180);
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const nextState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const nextTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+
+    clients[0].emit('player:stand');
+    const [state, timer] = await Promise.all([nextState, nextTimer]);
+
+    expect(state.phase).toBe('player2');
+    expect(timer.player).toBe('player2');
+  });
+
+  it('starts the timer for the actual next phase after a hit reaches 21', async () => {
+    const { clients } = await createFixture(
+      cards('10', '2', '10', '5', '3', '7', '6'),
+      2,
+      180,
+    );
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const nextState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const nextTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+
+    clients[0].emit('player:hit');
+    const [state, timer] = await Promise.all([nextState, nextTimer]);
+
+    expect(state.player1.status).toBe('twenty-one');
+    expect(state.phase).toBe('player2');
+    expect(timer.player).toBe('player2');
+  });
+
+  it('does not reset the active timer for an invalid out-of-turn action', async () => {
+    const { clients } = await createFixture(undefined, 2, 150);
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const unexpectedTimer = vi.fn();
+    clients[0].on('turn:timer', unexpectedTimer);
+    const rejection = onceEvent<GameActionRejectedPayload>(
+      clients[1],
+      'game:action-rejected',
+    );
+
+    clients[1].emit('player:hit');
+    await rejection;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(unexpectedTimer).not.toHaveBeenCalled();
+    const timeoutState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    expect((await timeoutState).player1.status).toBe('stood');
+  });
+
+  it('does not create another timer after the game finishes', async () => {
+    const { clients } = await createFixture(
+      cards('10', '9', '10', '6', '8', '7'),
+      2,
+      180,
+    );
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const playerTwoState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const playerTwoTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    clients[0].emit('player:stand');
+    await Promise.all([playerTwoState, playerTwoTimer]);
+    const finishedState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const unexpectedTimer = vi.fn();
+    clients[0].on('turn:timer', unexpectedTimer);
+
+    clients[1].emit('player:stand');
+    expect((await finishedState).phase).toBe('finished');
+    await new Promise((resolve) => setTimeout(resolve, 25));
+
+    expect(unexpectedTimer).not.toHaveBeenCalled();
+  });
+
+  it('starts a rematch timer for the alternating first player', async () => {
+    const { clients } = await createFixture(
+      cards('10', '9', '10', '6', '8', '7'),
+      2,
+      180,
+    );
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const playerTwoState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const playerTwoTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    clients[0].emit('player:stand');
+    await Promise.all([playerTwoState, playerTwoTimer]);
+    const finishedState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    clients[1].emit('player:stand');
+    await finishedState;
+    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    clients[0].emit('rematch:accept');
+    await acceptance;
+    const rematchState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const rematchTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+
+    clients[1].emit('rematch:accept');
+    const [state, timer] = await Promise.all([rematchState, rematchTimer]);
+
+    expect(state.phase).toBe('player2');
+    expect(timer.player).toBe('player2');
+  });
+
+  it('cancels the room timer when a player disconnects', async () => {
+    const { clients } = await createFixture(undefined, 2, 120);
+    const initialState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients);
+    await Promise.all([initialState, initialTimer]);
+    const disconnected = onceEvent<OpponentDisconnectedPayload>(
+      clients[1],
+      'game:opponent-disconnected',
+    );
+    const unexpectedState = vi.fn();
+    clients[1].on('game:state', unexpectedState);
+
+    clients[0].disconnect();
+    await disconnected;
+    await new Promise((resolve) => setTimeout(resolve, 170));
+
+    expect(unexpectedState).not.toHaveBeenCalled();
+  });
+
+  it('keeps another room timer active when one room is cleaned up', async () => {
+    const { clients } = await createFixture(undefined, 4, 150);
+    const roomOneState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const roomOneTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    await matchClients(clients.slice(0, 2));
+    await Promise.all([roomOneState, roomOneTimer]);
+    const roomTwoState = onceEvent<GameStatePayload>(clients[2], 'game:state');
+    const roomTwoTimer = onceEvent<TurnTimerPayload>(clients[2], 'turn:timer');
+    await matchClients(clients.slice(2, 4));
+    await Promise.all([roomTwoState, roomTwoTimer]);
+    const disconnected = onceEvent<OpponentDisconnectedPayload>(
+      clients[1],
+      'game:opponent-disconnected',
+    );
+    clients[0].disconnect();
+    await disconnected;
+    const timeoutState = onceEvent<GameStatePayload>(clients[2], 'game:state');
+
+    expect((await timeoutState).player1.status).toBe('stood');
   });
 });
 

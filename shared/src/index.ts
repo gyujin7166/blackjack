@@ -96,6 +96,12 @@ export interface RematchStatePayload {
   player2Accepted: boolean;
 }
 
+export interface TurnTimerPayload {
+  roomId: string;
+  player: PlayerSeat;
+  durationMs: number;
+}
+
 export interface MatchmakingMatchedPayload {
   roomId: string;
   seat: PlayerSeat;
@@ -110,6 +116,7 @@ export interface ServerToClientEvents {
   'game:opponent-disconnected': (payload: OpponentDisconnectedPayload) => void;
   'rematch:state': (payload: RematchStatePayload) => void;
   'chat:message': (payload: ChatMessagePayload) => void;
+  'turn:timer': (payload: TurnTimerPayload) => void;
 }
 
 export interface ClientToServerEvents {
