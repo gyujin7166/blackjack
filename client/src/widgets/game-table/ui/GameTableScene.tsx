@@ -207,8 +207,8 @@ function GameTableRound({
   animationRound,
   ...hudProps
 }: GameTableSceneProps) {
-  const player1Z = selfSeat === 'player1' ? 2.48 : -2.45;
-  const player2Z = selfSeat === 'player2' ? 2.48 : -2.45;
+  const player1Z = selfSeat === 'player1' ? 1.78 : -2.45;
+  const player2Z = selfSeat === 'player2' ? 1.78 : -2.45;
   const initialPlan = createDealerPresentationPlan({
     dealerHand: gameState.dealer.hand,
     phase: gameState.phase,
