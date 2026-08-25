@@ -8,15 +8,20 @@ import { Canvas, useThree } from '@react-three/fiber';
 import { useEffect } from 'react';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
+import { DealtCard3D } from './DealtCard3D';
 import { GameTableHud, type GameTableHudProps } from './GameTableHud';
 
 interface GameTableSceneProps
   extends Omit<GameTableHudProps, 'gameState' | 'selfSeat'> {
   gameState: GameStatePayload;
   selfSeat: PlayerSeat;
+  animationRound: number;
 }
 
 type Vector3Tuple = [number, number, number];
+
+const DEAL_ORIGIN: Vector3Tuple = [3.25, 0.54, -0.76];
+const DEAL_STAGGER_SECONDS = 0.12;
 
 function FixedCamera() {
   const camera = useThree((state) => state.camera);
@@ -31,49 +36,92 @@ function FixedCamera() {
 
 function PlayerHand({
   cards,
-  position,
+  owner,
+  animationRound,
+  z,
 }: {
   cards: Card[];
-  position: Vector3Tuple;
+  owner: PlayerSeat;
+  animationRound: number;
+  z: number;
+}) {
+  const spacing = 0.58;
+  const ownerOrder = owner === 'player1' ? 0 : 1;
+
+  return (
+    <>
+      {cards.map((card, index) => (
+        <DealtCard3D
+          card={card}
+          delay={index < 2
+            ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS
+            : 0}
+          key={`${animationRound}:${owner}:${index}`}
+          startPosition={DEAL_ORIGIN}
+          targetPosition={[
+            (index - (cards.length - 1) / 2) * spacing,
+            0.38 + index * 0.006,
+            z,
+          ]}
+        />
+      ))}
+    </>
+  );
+}
+
+function DealerHand({
+  cards,
+  animationRound,
+}: {
+  cards: Array<Card | HiddenCard>;
+  animationRound: number;
 }) {
   const spacing = 0.58;
 
   return (
-    <group position={position}>
-      {cards.map((card, index) => (
-        <Card3D
-          card={card}
-          key={`${card.suit}:${card.rank}:${index}`}
-          position={[(index - (cards.length - 1) / 2) * spacing, index * 0.006, 0]}
-        />
-      ))}
-    </group>
-  );
-}
-
-function DealerHand({ cards }: { cards: Array<Card | HiddenCard> }) {
-  const spacing = 0.58;
-
-  return (
-    <group position={[0, 0.38, -0.72]}>
+    <>
       {cards.map((card, index) => {
         const position: Vector3Tuple = [
           (index - (cards.length - 1) / 2) * spacing,
-          index * 0.006,
-          0,
+          0.38 + index * 0.006,
+          -0.72,
         ];
 
+        if (index >= 2) {
+          return 'hidden' in card ? (
+            <Card3D
+              hidden
+              key={`${animationRound}:dealer:${index}`}
+              position={position}
+            />
+          ) : (
+            <Card3D
+              card={card}
+              key={`${animationRound}:dealer:${index}`}
+              position={position}
+            />
+          );
+        }
+
         return 'hidden' in card ? (
-          <Card3D hidden key={`hidden:${index}`} position={position} />
+          <DealtCard3D
+            delay={(index * 3 + 2) * DEAL_STAGGER_SECONDS}
+            hidden
+            key={`${animationRound}:dealer:${index}`}
+            startPosition={DEAL_ORIGIN}
+            targetPosition={position}
+          />
         ) : (
-          <Card3D
+          <DealtCard3D
             card={card}
-            key={`${card.suit}:${card.rank}:${index}`}
-            position={position}
+            delay={(index * 3 + 2) * DEAL_STAGGER_SECONDS}
+            key={`${animationRound}:dealer:${index}`}
+            startPosition={DEAL_ORIGIN}
+            targetPosition={position}
           />
         );
       })}
-    </group>
+    </>
   );
 }
 
@@ -121,12 +169,11 @@ function Table() {
 export function GameTableScene({
   gameState,
   selfSeat,
+  animationRound,
   ...hudProps
 }: GameTableSceneProps) {
-  const self = gameState[selfSeat];
-  const opponent = selfSeat === 'player1'
-    ? gameState.player2
-    : gameState.player1;
+  const player1Z = selfSeat === 'player1' ? 2.48 : -2.45;
+  const player2Z = selfSeat === 'player2' ? 2.48 : -2.45;
 
   return (
     <section
@@ -146,9 +193,22 @@ export function GameTableScene({
         <pointLight color="#d8f3df" intensity={18} position={[4, 5, -3]} />
         <FixedCamera />
         <Table />
-        <PlayerHand cards={opponent.hand} position={[0, 0.38, -2.45]} />
-        <DealerHand cards={gameState.dealer.hand} />
-        <PlayerHand cards={self.hand} position={[0, 0.38, 2.48]} />
+        <PlayerHand
+          animationRound={animationRound}
+          cards={gameState.player1.hand}
+          owner="player1"
+          z={player1Z}
+        />
+        <PlayerHand
+          animationRound={animationRound}
+          cards={gameState.player2.hand}
+          owner="player2"
+          z={player2Z}
+        />
+        <DealerHand
+          animationRound={animationRound}
+          cards={gameState.dealer.hand}
+        />
         <VisualDeck />
       </Canvas>
       <GameTableHud gameState={gameState} selfSeat={selfSeat} {...hudProps} />

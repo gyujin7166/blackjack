@@ -33,12 +33,14 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
   return { socketMock, handlers, gameTableSceneMock: vi.fn() };
 });
 
+type GameTableSceneTestProps = GameTableHudProps & { animationRound: number };
+
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
 vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
   const { GameTableHud } = await import('../widgets/game-table/ui/GameTableHud');
 
   return {
-    GameTableScene: (props: GameTableHudProps) => {
+    GameTableScene: (props: GameTableSceneTestProps) => {
       gameTableSceneMock(props);
       return (
         <div data-testid="game-table-scene">
@@ -215,6 +217,66 @@ describe('3D game table', () => {
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ gameState: latestState }),
+    );
+  });
+
+  it('starts the first game state at animation round zero', () => {
+    renderMatched();
+
+    serverEmit('game:state', gameState());
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+  });
+
+  it('keeps the animation round when a hand grows in the same round', () => {
+    renderMatched();
+    const initialState = gameState();
+    serverEmit('game:state', initialState);
+
+    serverEmit('game:state', gameState({
+      player1: {
+        ...initialState.player1,
+        hand: [
+          ...initialState.player1.hand,
+          { rank: '6', suit: 'diamonds' },
+        ],
+      },
+    }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+  });
+
+  it('increments the animation round for a game state after finished', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+
+    serverEmit('game:state', gameState());
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+  });
+
+  it('resets the animation round for a new match lifecycle', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('game:state', gameState());
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+
+    serverEmit('matchmaking:matched', {
+      roomId: 'game:new-room',
+      seat: 'player2',
+    });
+    serverEmit('game:state', gameState({ roomId: 'game:new-room' }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
     );
   });
 
