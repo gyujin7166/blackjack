@@ -250,11 +250,47 @@ describe('3D game table', () => {
     );
   });
 
-  it('increments the animation round for a game state after finished', () => {
+  it('increments the animation round for the next state after both accept', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+
+    serverEmit('game:state', gameState());
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+  });
+
+  it('increments once when an accepted rematch immediately finishes', () => {
     renderMatched();
     serverEmit('game:state', gameState({ phase: 'finished' }));
 
-    serverEmit('game:state', gameState());
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+
+    serverEmit('game:state', gameState({
+      phase: 'finished',
+      player1: {
+        ...gameState().player1,
+        result: 'push',
+      },
+    }));
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ animationRound: 1 }),
@@ -264,6 +300,11 @@ describe('3D game table', () => {
   it('resets the animation round for a new match lifecycle', () => {
     renderMatched();
     serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
     serverEmit('game:state', gameState());
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ animationRound: 1 }),
@@ -274,6 +315,55 @@ describe('3D game table', () => {
       seat: 'player2',
     });
     serverEmit('game:state', gameState({ roomId: 'game:new-room' }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+  });
+
+  it.each([
+    {
+      lifecycle: 'waiting',
+      trigger: () => serverEmit('matchmaking:waiting'),
+    },
+    {
+      lifecycle: 'matched',
+      trigger: () => serverEmit('matchmaking:matched', {
+        roomId: 'game:replacement',
+        seat: 'player2',
+      }),
+    },
+    {
+      lifecycle: 'opponent disconnected',
+      trigger: () => serverEmit('game:opponent-disconnected', {
+        roomId: 'game:test-room',
+      }),
+    },
+    {
+      lifecycle: 'opponent left',
+      trigger: () => serverEmit('matchmaking:opponent-left', {
+        roomId: 'game:test-room',
+      }),
+    },
+    {
+      lifecycle: 'self disconnected',
+      trigger: () => act(() => socketMock.serverEmit('disconnect')),
+    },
+  ])('clears a pending animation round on $lifecycle', ({ trigger }) => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+
+    trigger();
+    serverEmit('matchmaking:matched', {
+      roomId: 'game:after-reset',
+      seat: 'player1',
+    });
+    serverEmit('game:state', gameState({ roomId: 'game:after-reset' }));
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ animationRound: 0 }),

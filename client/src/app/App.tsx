@@ -42,7 +42,7 @@ export function App() {
   const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
   const [animationRound, setAnimationRound] = useState(0);
   const matchRef = useRef<MatchmakingMatchedPayload | null>(null);
-  const previousGameStateRef = useRef<GameStatePayload | null>(null);
+  const rematchRoundPendingRef = useRef(false);
 
   useEffect(() => {
     if (turnTimerDeadline === null) return;
@@ -77,7 +77,7 @@ export function App() {
       setTurnTimerSeconds(0);
       setAnimationRound(0);
       matchRef.current = null;
-      previousGameStateRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleWaiting = () => {
       setMatchmakingStatus('waiting');
@@ -96,7 +96,7 @@ export function App() {
       setTurnTimerSeconds(0);
       setAnimationRound(0);
       matchRef.current = null;
-      previousGameStateRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleMatched = (payload: MatchmakingMatchedPayload) => {
       setMatchmakingStatus('matched');
@@ -115,16 +115,13 @@ export function App() {
       setTurnTimerDeadline(null);
       setTurnTimerSeconds(0);
       setAnimationRound(0);
-      previousGameStateRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleGameState = (payload: GameStatePayload) => {
-      if (
-        previousGameStateRef.current?.phase === 'finished' &&
-        payload.phase !== 'finished'
-      ) {
+      if (rematchRoundPendingRef.current) {
+        rematchRoundPendingRef.current = false;
         setAnimationRound((round) => round + 1);
       }
-      previousGameStateRef.current = payload;
       setGameState(payload);
       setActionPending(false);
       setActionError(null);
@@ -156,7 +153,7 @@ export function App() {
       setTurnTimerSeconds(0);
       setAnimationRound(0);
       matchRef.current = null;
-      previousGameStateRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleOpponentLeft = () => {
       setMatchmakingStatus('idle');
@@ -175,9 +172,12 @@ export function App() {
       setTurnTimerSeconds(0);
       setAnimationRound(0);
       matchRef.current = null;
-      previousGameStateRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleRematchState = (payload: RematchStatePayload) => {
+      if (payload.player1Accepted && payload.player2Accepted) {
+        rematchRoundPendingRef.current = true;
+      }
       setRematchPending(false);
       setRematchState(payload);
     };
