@@ -33,12 +33,14 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
   return { socketMock, handlers, gameTableSceneMock: vi.fn() };
 });
 
+type GameTableSceneTestProps = GameTableHudProps & { animationRound: number };
+
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
 vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
   const { GameTableHud } = await import('../widgets/game-table/ui/GameTableHud');
 
   return {
-    GameTableScene: (props: GameTableHudProps) => {
+    GameTableScene: (props: GameTableSceneTestProps) => {
       gameTableSceneMock(props);
       return (
         <div data-testid="game-table-scene">
@@ -215,6 +217,156 @@ describe('3D game table', () => {
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ gameState: latestState }),
+    );
+  });
+
+  it('starts the first game state at animation round zero', () => {
+    renderMatched();
+
+    serverEmit('game:state', gameState());
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+  });
+
+  it('keeps the animation round when a hand grows in the same round', () => {
+    renderMatched();
+    const initialState = gameState();
+    serverEmit('game:state', initialState);
+
+    serverEmit('game:state', gameState({
+      player1: {
+        ...initialState.player1,
+        hand: [
+          ...initialState.player1.hand,
+          { rank: '6', suit: 'diamonds' },
+        ],
+      },
+    }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+  });
+
+  it('increments the animation round for the next state after both accept', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+
+    serverEmit('game:state', gameState());
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+  });
+
+  it('increments once when an accepted rematch immediately finishes', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+
+    serverEmit('game:state', gameState({
+      phase: 'finished',
+      player1: {
+        ...gameState().player1,
+        result: 'push',
+      },
+    }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+  });
+
+  it('resets the animation round for a new match lifecycle', () => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+    serverEmit('game:state', gameState());
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 1 }),
+    );
+
+    serverEmit('matchmaking:matched', {
+      roomId: 'game:new-room',
+      seat: 'player2',
+    });
+    serverEmit('game:state', gameState({ roomId: 'game:new-room' }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
+    );
+  });
+
+  it.each([
+    {
+      lifecycle: 'waiting',
+      trigger: () => serverEmit('matchmaking:waiting'),
+    },
+    {
+      lifecycle: 'matched',
+      trigger: () => serverEmit('matchmaking:matched', {
+        roomId: 'game:replacement',
+        seat: 'player2',
+      }),
+    },
+    {
+      lifecycle: 'opponent disconnected',
+      trigger: () => serverEmit('game:opponent-disconnected', {
+        roomId: 'game:test-room',
+      }),
+    },
+    {
+      lifecycle: 'opponent left',
+      trigger: () => serverEmit('matchmaking:opponent-left', {
+        roomId: 'game:test-room',
+      }),
+    },
+    {
+      lifecycle: 'self disconnected',
+      trigger: () => act(() => socketMock.serverEmit('disconnect')),
+    },
+  ])('clears a pending animation round on $lifecycle', ({ trigger }) => {
+    renderMatched();
+    serverEmit('game:state', gameState({ phase: 'finished' }));
+    serverEmit('rematch:state', {
+      roomId: 'game:test-room',
+      player1Accepted: true,
+      player2Accepted: true,
+    });
+
+    trigger();
+    serverEmit('matchmaking:matched', {
+      roomId: 'game:after-reset',
+      seat: 'player1',
+    });
+    serverEmit('game:state', gameState({ roomId: 'game:after-reset' }));
+
+    expect(gameTableSceneMock).toHaveBeenLastCalledWith(
+      expect.objectContaining({ animationRound: 0 }),
     );
   });
 

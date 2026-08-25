@@ -40,7 +40,9 @@ export function App() {
   const [turnTimer, setTurnTimer] = useState<TurnTimerPayload | null>(null);
   const [turnTimerDeadline, setTurnTimerDeadline] = useState<number | null>(null);
   const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
+  const [animationRound, setAnimationRound] = useState(0);
   const matchRef = useRef<MatchmakingMatchedPayload | null>(null);
+  const rematchRoundPendingRef = useRef(false);
 
   useEffect(() => {
     if (turnTimerDeadline === null) return;
@@ -73,7 +75,9 @@ export function App() {
       setTurnTimer(null);
       setTurnTimerDeadline(null);
       setTurnTimerSeconds(0);
+      setAnimationRound(0);
       matchRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleWaiting = () => {
       setMatchmakingStatus('waiting');
@@ -90,7 +94,9 @@ export function App() {
       setTurnTimer(null);
       setTurnTimerDeadline(null);
       setTurnTimerSeconds(0);
+      setAnimationRound(0);
       matchRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleMatched = (payload: MatchmakingMatchedPayload) => {
       setMatchmakingStatus('matched');
@@ -108,8 +114,14 @@ export function App() {
       setTurnTimer(null);
       setTurnTimerDeadline(null);
       setTurnTimerSeconds(0);
+      setAnimationRound(0);
+      rematchRoundPendingRef.current = false;
     };
     const handleGameState = (payload: GameStatePayload) => {
+      if (rematchRoundPendingRef.current) {
+        rematchRoundPendingRef.current = false;
+        setAnimationRound((round) => round + 1);
+      }
       setGameState(payload);
       setActionPending(false);
       setActionError(null);
@@ -139,7 +151,9 @@ export function App() {
       setTurnTimer(null);
       setTurnTimerDeadline(null);
       setTurnTimerSeconds(0);
+      setAnimationRound(0);
       matchRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleOpponentLeft = () => {
       setMatchmakingStatus('idle');
@@ -156,9 +170,14 @@ export function App() {
       setTurnTimer(null);
       setTurnTimerDeadline(null);
       setTurnTimerSeconds(0);
+      setAnimationRound(0);
       matchRef.current = null;
+      rematchRoundPendingRef.current = false;
     };
     const handleRematchState = (payload: RematchStatePayload) => {
+      if (payload.player1Accepted && payload.player2Accepted) {
+        rematchRoundPendingRef.current = true;
+      }
       setRematchPending(false);
       setRematchState(payload);
     };
@@ -311,6 +330,7 @@ export function App() {
           <div className="mt-6">
             <GameTableScene
               actionError={actionError}
+              animationRound={animationRound}
               canAct={canAct}
               chatInput={chatInput}
               chatMessages={chatMessages}
