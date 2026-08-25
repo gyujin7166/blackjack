@@ -33,7 +33,10 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
   return { socketMock, handlers, gameTableSceneMock: vi.fn() };
 });
 
-type GameTableSceneTestProps = GameTableHudProps & { animationRound: number };
+type GameTableSceneTestProps = Omit<
+  GameTableHudProps,
+  'dealerSequenceComplete'
+> & { animationRound: number };
 
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
 vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
@@ -44,7 +47,7 @@ vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
       gameTableSceneMock(props);
       return (
         <div data-testid="game-table-scene">
-          <GameTableHud {...props} />
+          <GameTableHud {...props} dealerSequenceComplete />
         </div>
       );
     },

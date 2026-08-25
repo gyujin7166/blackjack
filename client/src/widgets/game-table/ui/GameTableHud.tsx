@@ -21,6 +21,7 @@ export interface GameTableHudProps {
   selfAccepted: boolean;
   opponentAccepted: boolean;
   actionError: string | null;
+  dealerSequenceComplete: boolean;
   onHit: () => void;
   onStand: () => void;
   onChatInputChange: (value: string) => void;
@@ -51,6 +52,7 @@ export function GameTableHud({
   selfAccepted,
   opponentAccepted,
   actionError,
+  dealerSequenceComplete,
   onHit,
   onStand,
   onChatInputChange,
@@ -63,6 +65,8 @@ export function GameTableHud({
     ? gameState.player2
     : gameState.player1;
   const isFinished = gameState.phase === 'finished';
+  const showFinishedResult = isFinished && dealerSequenceComplete;
+  const showCanonicalResults = !isFinished || dealerSequenceComplete;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
@@ -70,14 +74,21 @@ export function GameTableHud({
         <h2 className="font-bold">Opponent</h2>
         <p>Score: {opponent.score}</p>
         <p>Status: {opponent.status}</p>
-        {opponent.result && <p>Result: {resultLabels[opponent.result]}</p>}
+        {showCanonicalResults && opponent.result && (
+          <p>Result: {resultLabels[opponent.result]}</p>
+        )}
       </section>
 
       <section
         className={`${statusPanelClass} absolute top-3 right-3 text-center sm:right-auto sm:left-1/2 sm:-translate-x-1/2`}
       >
         <h2 className="font-bold">Dealer</h2>
-        <p>Dealer score: {gameState.dealer.score ?? '?'}</p>
+        <p>
+          Dealer score:{' '}
+          {isFinished && !dealerSequenceComplete
+            ? '?'
+            : (gameState.dealer.score ?? '?')}
+        </p>
       </section>
 
       <section
@@ -86,7 +97,9 @@ export function GameTableHud({
         <h2 className="font-bold">Self</h2>
         <p>Score: {self.score}</p>
         <p>Status: {self.status}</p>
-        {self.result && <p>Result: {resultLabels[self.result]}</p>}
+        {showCanonicalResults && self.result && (
+          <p>Result: {resultLabels[self.result]}</p>
+        )}
       </section>
 
       {turnTimer && !isFinished && (
@@ -160,7 +173,7 @@ export function GameTableHud({
         </>
       )}
 
-      {isFinished && (
+      {showFinishedResult && (
         <>
           <div className="pointer-events-auto absolute inset-0 z-20 bg-black/70" />
           <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center p-4">

@@ -1,18 +1,27 @@
 import type {
   Card,
+  GamePhase,
   GameStatePayload,
   HiddenCard,
   PlayerSeat,
 } from '@blackjack/shared';
 import { Canvas, useThree } from '@react-three/fiber';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
+import {
+  createDealerPresentationPlan,
+  type DealerPresentationPlan,
+} from '../lib/dealerPresentation';
+import { DealerRevealCard3D } from './DealerRevealCard3D';
 import { DealtCard3D } from './DealtCard3D';
 import { GameTableHud, type GameTableHudProps } from './GameTableHud';
 
 interface GameTableSceneProps
-  extends Omit<GameTableHudProps, 'gameState' | 'selfSeat'> {
+  extends Omit<
+    GameTableHudProps,
+    'dealerSequenceComplete' | 'gameState' | 'selfSeat'
+  > {
   gameState: GameStatePayload;
   selfSeat: PlayerSeat;
   animationRound: number;
@@ -22,6 +31,13 @@ type Vector3Tuple = [number, number, number];
 
 const DEAL_ORIGIN: Vector3Tuple = [3.25, 0.54, -0.76];
 const DEAL_STAGGER_SECONDS = 0.12;
+
+type DealerSequenceStage =
+  | 'playing'
+  | 'waiting-initial-deal'
+  | 'revealing'
+  | 'drawing'
+  | 'complete';
 
 function FixedCamera() {
   const camera = useThree((state) => state.camera);
@@ -72,50 +88,69 @@ function PlayerHand({
 function DealerHand({
   cards,
   animationRound,
+  drawIndices,
+  onDrawComplete,
+  onHoleCardDealComplete,
+  onHoleCardRevealComplete,
+  revealHoleCard,
 }: {
   cards: Array<Card | HiddenCard>;
   animationRound: number;
+  drawIndices: number[];
+  onDrawComplete: () => void;
+  onHoleCardDealComplete: () => void;
+  onHoleCardRevealComplete: () => void;
+  revealHoleCard: boolean;
 }) {
   const spacing = 0.58;
+  const visibleIndices = [0, 1, ...drawIndices].filter(
+    (index) => index < cards.length,
+  );
 
   return (
     <>
-      {cards.map((card, index) => {
+      {visibleIndices.map((index, visibleIndex) => {
+        const card = cards[index];
+        if (!card) return null;
         const position: Vector3Tuple = [
-          (index - (cards.length - 1) / 2) * spacing,
+          (visibleIndex - (visibleIndices.length - 1) / 2) * spacing,
           0.38 + index * 0.006,
           -0.72,
         ];
 
-        if (index >= 2) {
-          return 'hidden' in card ? (
-            <Card3D
-              hidden
-              key={`${animationRound}:dealer:${index}`}
-              position={position}
-            />
-          ) : (
-            <Card3D
+        if (index === 0) {
+          return 'hidden' in card ? null : (
+            <DealtCard3D
               card={card}
-              key={`${animationRound}:dealer:${index}`}
-              position={position}
+              delay={2 * DEAL_STAGGER_SECONDS}
+              key={`${animationRound}:dealer:0`}
+              startPosition={DEAL_ORIGIN}
+              targetPosition={position}
             />
           );
         }
 
-        return 'hidden' in card ? (
-          <DealtCard3D
-            delay={(index * 3 + 2) * DEAL_STAGGER_SECONDS}
-            hidden
-            key={`${animationRound}:dealer:${index}`}
-            startPosition={DEAL_ORIGIN}
-            targetPosition={position}
-          />
-        ) : (
+        if (index === 1) {
+          return (
+            <DealerRevealCard3D
+              card={'hidden' in card ? null : card}
+              dealDelay={5 * DEAL_STAGGER_SECONDS}
+              key={`${animationRound}:dealer:1`}
+              onInitialDealComplete={onHoleCardDealComplete}
+              onRevealComplete={onHoleCardRevealComplete}
+              reveal={revealHoleCard}
+              startPosition={DEAL_ORIGIN}
+              targetPosition={position}
+            />
+          );
+        }
+
+        return 'hidden' in card ? null : (
           <DealtCard3D
             card={card}
-            delay={(index * 3 + 2) * DEAL_STAGGER_SECONDS}
+            delay={0}
             key={`${animationRound}:dealer:${index}`}
+            onInitialDealComplete={onDrawComplete}
             startPosition={DEAL_ORIGIN}
             targetPosition={position}
           />
@@ -166,7 +201,7 @@ function Table() {
   );
 }
 
-export function GameTableScene({
+function GameTableRound({
   gameState,
   selfSeat,
   animationRound,
@@ -174,6 +209,77 @@ export function GameTableScene({
 }: GameTableSceneProps) {
   const player1Z = selfSeat === 'player1' ? 2.48 : -2.45;
   const player2Z = selfSeat === 'player2' ? 2.48 : -2.45;
+  const initialPlan = createDealerPresentationPlan({
+    dealerHand: gameState.dealer.hand,
+    phase: gameState.phase,
+    previousPhase: null,
+  });
+  const [dealerPlan, setDealerPlan] = useState<DealerPresentationPlan>(initialPlan);
+  const [dealerStage, setDealerStage] = useState<DealerSequenceStage>(
+    initialPlan.shouldRevealHoleCard
+      ? 'waiting-initial-deal'
+      : 'playing',
+  );
+  const [visibleDrawCount, setVisibleDrawCount] = useState(0);
+  const previousPhaseRef = useRef<GamePhase>(gameState.phase);
+  const initialDealerDealCompleteRef = useRef(false);
+
+  useEffect(() => {
+    const plan = createDealerPresentationPlan({
+      dealerHand: gameState.dealer.hand,
+      phase: gameState.phase,
+      previousPhase: previousPhaseRef.current,
+    });
+    previousPhaseRef.current = gameState.phase;
+
+    if (gameState.phase !== 'finished') {
+      setDealerStage('playing');
+      setVisibleDrawCount(0);
+      return;
+    }
+
+    if (!plan.shouldRevealHoleCard) return;
+    setDealerPlan(plan);
+    setVisibleDrawCount(0);
+    setDealerStage(
+      !initialDealerDealCompleteRef.current
+        ? 'waiting-initial-deal'
+        : 'revealing',
+    );
+  }, [gameState.dealer.hand, gameState.phase]);
+
+  const handleHoleCardDealComplete = useCallback(() => {
+    initialDealerDealCompleteRef.current = true;
+    setDealerStage((stage) =>
+      stage === 'waiting-initial-deal' ? 'revealing' : stage,
+    );
+  }, []);
+
+  const handleHoleCardRevealComplete = useCallback(() => {
+    if (dealerPlan.drawIndices.length === 0) {
+      setDealerStage('complete');
+      return;
+    }
+
+    setVisibleDrawCount(1);
+    setDealerStage('drawing');
+  }, [dealerPlan.drawIndices.length]);
+
+  const handleDealerDrawComplete = useCallback(() => {
+    setVisibleDrawCount((count) => {
+      if (count >= dealerPlan.drawIndices.length) {
+        setDealerStage('complete');
+        return count;
+      }
+      return count + 1;
+    });
+  }, [dealerPlan.drawIndices.length]);
+
+  const visibleDrawIndices = dealerPlan.drawIndices.slice(0, visibleDrawCount);
+  const dealerSequenceComplete = dealerStage === 'complete';
+  const revealHoleCard = dealerStage === 'revealing'
+    || dealerStage === 'drawing'
+    || dealerStage === 'complete';
 
   return (
     <section
@@ -208,10 +314,24 @@ export function GameTableScene({
         <DealerHand
           animationRound={animationRound}
           cards={gameState.dealer.hand}
+          drawIndices={visibleDrawIndices}
+          onDrawComplete={handleDealerDrawComplete}
+          onHoleCardDealComplete={handleHoleCardDealComplete}
+          onHoleCardRevealComplete={handleHoleCardRevealComplete}
+          revealHoleCard={revealHoleCard}
         />
         <VisualDeck />
       </Canvas>
-      <GameTableHud gameState={gameState} selfSeat={selfSeat} {...hudProps} />
+      <GameTableHud
+        dealerSequenceComplete={dealerSequenceComplete}
+        gameState={gameState}
+        selfSeat={selfSeat}
+        {...hudProps}
+      />
     </section>
   );
+}
+
+export function GameTableScene(props: GameTableSceneProps) {
+  return <GameTableRound key={props.animationRound} {...props} />;
 }

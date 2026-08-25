@@ -1,7 +1,7 @@
 import type { Card } from '@blackjack/shared';
 import { useThree } from '@react-three/fiber';
 import gsap from 'gsap';
-import { useLayoutEffect, useRef } from 'react';
+import { type ReactNode, useLayoutEffect, useRef } from 'react';
 import type { Group } from 'three';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
@@ -10,23 +10,29 @@ type Vector3Tuple = [number, number, number];
 
 type DealtCard3DProps = {
   delay: number;
+  onInitialDealComplete?: () => void;
   startPosition: Vector3Tuple;
   targetPosition: Vector3Tuple;
 } & (
-  | { card: Card; hidden?: false }
-  | { card?: never; hidden: true }
+  | { card: Card; children?: never; hidden?: false }
+  | { card?: never; children?: never; hidden: true }
+  | { card?: never; children: ReactNode; hidden?: never }
 );
 
 export function DealtCard3D({
   card,
+  children,
   hidden = false,
   delay,
+  onInitialDealComplete,
   startPosition,
   targetPosition,
 }: DealtCard3DProps) {
   const groupRef = useRef<Group>(null);
   const previousTargetRef = useRef<Vector3Tuple | null>(null);
   const initialDealCompletedRef = useRef(false);
+  const initialDealCompleteCallbackRef = useRef(onInitialDealComplete);
+  initialDealCompleteCallbackRef.current = onInitialDealComplete;
   const invalidate = useThree((state) => state.invalidate);
   const [startX, startY, startZ] = startPosition;
   const [targetX, targetY, targetZ] = targetPosition;
@@ -60,8 +66,12 @@ export function DealtCard3D({
       ease: 'power2.out',
       overwrite: true,
       onComplete: () => {
+        const isInitialDeal = !initialDealCompletedRef.current;
         initialDealCompletedRef.current = true;
         invalidate();
+        if (isInitialDeal) {
+          initialDealCompleteCallbackRef.current?.();
+        }
       },
       onUpdate: invalidate,
     });
@@ -82,7 +92,11 @@ export function DealtCard3D({
 
   return (
     <group ref={groupRef}>
-      {hidden ? <Card3D hidden /> : card ? <Card3D card={card} /> : null}
+      {children ?? (hidden
+        ? <Card3D hidden />
+        : card
+          ? <Card3D card={card} />
+          : null)}
     </group>
   );
 }
