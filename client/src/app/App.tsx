@@ -291,8 +291,8 @@ export function App() {
   };
 
   return (
-    <main className="grid min-h-screen place-items-center p-6">
-      <section className="w-full max-w-[760px] rounded-2xl border border-gray-700 bg-gray-800 p-8">
+    <main className="grid min-h-screen place-items-center p-3 sm:p-6">
+      <section className="w-full min-w-0 max-w-[760px] rounded-2xl border border-gray-700 bg-gray-800 p-4 sm:p-8">
         <p className="m-0 text-xs font-bold tracking-[0.16em]">BLACKJACK</p>
         <h1 className="mt-2 mb-4 text-[2em] font-bold">Realtime Blackjack</h1>
         <p>
