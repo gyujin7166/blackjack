@@ -11,6 +11,10 @@
     "dev:server": "pnpm --filter server dev",
     "build": "pnpm --filter @blackjack/shared build && pnpm --filter server build && pnpm --filter client build",
     "test": "pnpm --filter server test && pnpm --filter client test",
+    "test:e2e": "pnpm --filter @blackjack/shared build && playwright test",
     "typecheck": "pnpm --filter @blackjack/shared typecheck && pnpm --filter server typecheck && pnpm --filter client typecheck"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1"
   }
 }

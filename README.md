@@ -92,3 +92,15 @@ http://localhost:5173
 pnpm typecheck
 pnpm build
 ```
+
+최초 한 번 Playwright용 Chromium을 설치합니다.
+
+```bash
+pnpm exec playwright install chromium
+```
+
+E2E smoke test는 전용 포트(client 5174, server 3101)에서 client/server를 자동 실행합니다.
+
+```bash
+pnpm test:e2e
+```
