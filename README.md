@@ -104,3 +104,65 @@ E2E smoke test는 전용 포트(client 5174, server 3101)에서 client/server를
 ```bash
 pnpm test:e2e
 ```
+
+## Production 배포
+
+배포 순서는 Vercel production origin을 먼저 확보한 뒤 Render의 CORS origin을 설정하고, 마지막으로 Render URL을 Vercel에 연결한다.
+
+1. PR의 CI `quality`, `e2e` job이 모두 성공한 뒤 `main`에 merge한다.
+2. Vercel project를 생성해 `https://<project>.vercel.app` 주소를 확보한다. 이 최초 배포에서는 Socket.IO가 아직 연결되지 않아도 된다.
+3. Render Web Service를 생성하고 Vercel production origin을 `CLIENT_ORIGIN`으로 설정한다.
+4. Render의 `/health` 응답을 확인한 뒤 Vercel Production 환경에 `VITE_SOCKET_URL`을 설정하고 redeploy한다.
+5. 실제 브라우저 두 개로 매칭, 게임, 채팅, 재대결 흐름을 확인한다.
+
+### Render server
+
+- Service Type: `Web Service`
+- Repository / Branch: 이 repository의 `main`
+- Root Directory: 비워둠(repository root)
+- Instance: `Free`
+- Node: repository에 선언된 Node.js 24
+- Build Command:
+
+  ```bash
+  corepack enable && pnpm install --frozen-lockfile && pnpm --filter @blackjack/shared build && pnpm --filter server build
+  ```
+
+- Start Command: `pnpm --filter server start`
+- Health Check Path: `/health`
+- Environment Variable: `CLIENT_ORIGIN=https://<project>.vercel.app`
+
+`PORT`는 Render가 제공하는 값을 사용하며 직접 고정하지 않는다. 서버는 해당 port를 `0.0.0.0`에 bind한다. Root Directory를 `server`로 지정하면 workspace 바깥의 `shared` package를 build/runtime에서 사용할 수 없으므로 repository root를 유지한다. Render Web Service는 HTTP와 WebSocket을 같은 public port로 제공한다([Render Web Services](https://render.com/docs/web-services), [Render WebSockets](https://render.com/docs/websocket)).
+
+배포 후 다음 요청이 `200`, `text/plain`, `ok`를 반환해야 한다.
+
+```text
+GET https://<service>.onrender.com/health
+```
+
+### Vercel client
+
+- Repository / Branch: Render와 동일한 repository의 `main`
+- Root Directory: repository root
+- Install Command: `corepack enable && pnpm install --frozen-lockfile`
+- Build Command: `pnpm --filter @blackjack/shared build && pnpm --filter client build`
+- Output Directory: `client/dist`
+- Production Environment Variable: `VITE_SOCKET_URL=https://<service>.onrender.com`
+
+Dashboard 설정으로 충분하므로 별도의 `vercel.json`은 사용하지 않는다. HTTPS Vercel 페이지에서 HTTPS Render endpoint를 사용해야 mixed-content 오류가 발생하지 않는다. Monorepo project 설정은 [Vercel Monorepos 문서](https://vercel.com/docs/monorepos)를 참고한다.
+
+### Upstash QStash keep-alive
+
+애플리케이션 dependency나 서버 cron을 추가하지 않고 Upstash Console에서 schedule 하나를 생성한다.
+
+- Destination: `https://<service>.onrender.com/health`
+- Method: `GET`
+- Cron: `*/5 * * * *`
+
+5분 간격은 시간당 12회, 하루 288회다. QStash Free의 현재 한도는 하루 1,000 messages이며 schedule trigger와 각 retry delivery가 각각 message로 계산된다([QStash Schedules](https://upstash.com/docs/qstash/features/schedules), [QStash Pricing](https://upstash.com/pricing/qstash)). Blackjack 사용자의 Socket.IO traffic은 이 quota에 포함되지 않는다. Console delivery log에서 `/health` 요청이 반복적으로 2xx를 반환하는지 확인한다.
+
+### Render Free known limitations
+
+Render Free Web Service는 inbound HTTP request나 WebSocket message를 15분 동안 받지 않으면 spin down할 수 있고, 필요에 따라 process를 restart할 수 있다([Render Free 문서](https://render.com/docs/free)). 5분 QStash request는 idle spin-down 가능성을 줄이기 위한 것이며 availability를 보장하지 않는다.
+
+현재 `matchmakingQueue`, `activeMatches`, `gameSessions`, `rematchAcceptances`, `turnTimers`는 process memory에 저장된다. Render process가 restart되면 진행 중인 매칭과 게임은 사라질 수 있으며, 이 MVP 제한을 이번 구성에서는 Redis나 DB로 해결하지 않는다.
