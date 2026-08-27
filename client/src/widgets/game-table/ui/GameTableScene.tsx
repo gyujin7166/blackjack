@@ -7,6 +7,7 @@ import type {
 } from '@blackjack/shared';
 import { Canvas, useThree } from '@react-three/fiber';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { PerspectiveCamera } from 'three';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
 import {
@@ -29,7 +30,7 @@ interface GameTableSceneProps
 
 type Vector3Tuple = [number, number, number];
 
-const DEAL_ORIGIN: Vector3Tuple = [3.25, 0.54, -0.76];
+const DEAL_ORIGIN: Vector3Tuple = [4.25, 0.54, -2.32];
 const DEAL_STAGGER_SECONDS = 0.12;
 
 type DealerSequenceStage =
@@ -41,11 +42,17 @@ type DealerSequenceStage =
 
 function FixedCamera() {
   const camera = useThree((state) => state.camera);
+  const viewportWidth = useThree((state) => state.size.width);
+  const viewportHeight = useThree((state) => state.size.height);
 
   useEffect(() => {
-    camera.lookAt(0, 0, 0);
+    const isPortrait = viewportWidth / viewportHeight < 0.8;
+    const position: Vector3Tuple = isPortrait ? [0, 15, 12] : [0, 10.8, 7.4];
+    camera.position.set(...position);
+    (camera as PerspectiveCamera).fov = isPortrait ? 55 : 44;
+    camera.lookAt(0, 0, -0.15);
     camera.updateProjectionMatrix();
-  }, [camera]);
+  }, [camera, viewportHeight, viewportWidth]);
 
   return null;
 }
@@ -54,11 +61,13 @@ function PlayerHand({
   cards,
   owner,
   animationRound,
+  x,
   z,
 }: {
   cards: Card[];
   owner: PlayerSeat;
   animationRound: number;
+  x: number;
   z: number;
 }) {
   const spacing = 0.58;
@@ -75,7 +84,7 @@ function PlayerHand({
           key={`${animationRound}:${owner}:${index}`}
           startPosition={DEAL_ORIGIN}
           targetPosition={[
-            (index - (cards.length - 1) / 2) * spacing,
+            x + (index - (cards.length - 1) / 2) * spacing,
             0.38 + index * 0.006,
             z,
           ]}
@@ -115,7 +124,7 @@ function DealerHand({
         const position: Vector3Tuple = [
           (visibleIndex - (visibleIndices.length - 1) / 2) * spacing,
           0.38 + index * 0.006,
-          -0.72,
+          -2.05,
         ];
 
         if (index === 0) {
@@ -162,7 +171,7 @@ function DealerHand({
 
 function VisualDeck() {
   return (
-    <group position={[3.25, 0.42, -0.78]} rotation={[0, -0.18, 0]}>
+    <group position={[4.25, 0.42, -2.32]} rotation={[0, -0.18, 0]}>
       {[0, 0.04, 0.08].map((height, index) => (
         <Card3D hidden key={height} position={[0, height, index * 0.012]} />
       ))}
@@ -174,23 +183,23 @@ function Table() {
   return (
     <group>
       <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[10.2, 0.32, 6.9]} />
+        <boxGeometry args={[12.6, 0.32, 7.8]} />
         <meshStandardMaterial color="#075c42" roughness={0.92} />
       </mesh>
-      <mesh position={[0, 0.04, -3.5]}>
-        <boxGeometry args={[10.65, 0.46, 0.34]} />
+      <mesh position={[0, 0.04, -3.96]}>
+        <boxGeometry args={[13.05, 0.46, 0.34]} />
         <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
       </mesh>
-      <mesh position={[0, 0.04, 3.5]}>
-        <boxGeometry args={[10.65, 0.46, 0.34]} />
+      <mesh position={[0, 0.04, 3.96]}>
+        <boxGeometry args={[13.05, 0.46, 0.34]} />
         <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
       </mesh>
-      <mesh position={[-5.18, 0.04, 0]}>
-        <boxGeometry args={[0.34, 0.46, 7.34]} />
+      <mesh position={[-6.38, 0.04, 0]}>
+        <boxGeometry args={[0.34, 0.46, 8.24]} />
         <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
       </mesh>
-      <mesh position={[5.18, 0.04, 0]}>
-        <boxGeometry args={[0.34, 0.46, 7.34]} />
+      <mesh position={[6.38, 0.04, 0]}>
+        <boxGeometry args={[0.34, 0.46, 8.24]} />
         <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
       </mesh>
       <mesh position={[0, 0.172, 0.68]} rotation={[-Math.PI / 2, 0, 0]}>
@@ -207,8 +216,8 @@ function GameTableRound({
   animationRound,
   ...hudProps
 }: GameTableSceneProps) {
-  const player1Z = selfSeat === 'player1' ? 1.78 : -2.45;
-  const player2Z = selfSeat === 'player2' ? 1.78 : -2.45;
+  const player1X = selfSeat === 'player1' ? 2.55 : -2.55;
+  const player2X = selfSeat === 'player2' ? 2.55 : -2.55;
   const initialPlan = createDealerPresentationPlan({
     dealerHand: gameState.dealer.hand,
     phase: gameState.phase,
@@ -284,11 +293,11 @@ function GameTableRound({
   return (
     <section
       aria-label="블랙잭 게임 테이블"
-      className="relative h-[540px] w-full overflow-hidden rounded-2xl border border-emerald-900 bg-[#06140f] sm:h-[620px]"
+      className="relative h-full w-full overflow-hidden bg-[#06140f]"
     >
       <Canvas
         aria-hidden="true"
-        camera={{ fov: 42, near: 0.1, far: 50, position: [0, 8.1, 9.2] }}
+        camera={{ fov: 44, near: 0.1, far: 50, position: [0, 10.8, 7.4] }}
         dpr={[1, 1.5]}
         frameloop="demand"
         gl={{ alpha: false, antialias: true }}
@@ -303,13 +312,15 @@ function GameTableRound({
           animationRound={animationRound}
           cards={gameState.player1.hand}
           owner="player1"
-          z={player1Z}
+          x={player1X}
+          z={1.75}
         />
         <PlayerHand
           animationRound={animationRound}
           cards={gameState.player2.hand}
           owner="player2"
-          z={player2Z}
+          x={player2X}
+          z={1.75}
         />
         <DealerHand
           animationRound={animationRound}

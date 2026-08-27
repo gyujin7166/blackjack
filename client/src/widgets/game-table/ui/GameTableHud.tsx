@@ -37,7 +37,7 @@ const resultLabels: Record<GameResult, string> = {
 };
 
 const statusPanelClass =
-  'rounded-lg border border-white/15 bg-slate-950/75 px-3 py-2 text-xs text-white shadow-lg backdrop-blur-sm sm:text-sm';
+  'rounded-lg border border-white/15 bg-slate-950/75 px-2.5 py-1.5 text-[11px] text-white shadow-lg backdrop-blur-sm sm:px-3 sm:py-2 sm:text-sm';
 
 export function GameTableHud({
   gameState,
@@ -70,7 +70,9 @@ export function GameTableHud({
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
-      <section className={`${statusPanelClass} absolute top-3 left-3`}>
+      <section
+        className={`${statusPanelClass} absolute top-3 left-3 lg:top-auto lg:bottom-32 lg:left-6`}
+      >
         <h2 className="font-bold">Opponent</h2>
         <p>Score: {opponent.score}</p>
         <p>Status: {opponent.status}</p>
@@ -80,7 +82,7 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute top-3 right-3 text-center sm:right-auto sm:left-1/2 sm:-translate-x-1/2`}
+        className={`${statusPanelClass} absolute top-3 left-1/2 -translate-x-1/2 text-center`}
       >
         <h2 className="font-bold">Dealer</h2>
         <p>
@@ -92,7 +94,7 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute bottom-[15.5rem] left-3 sm:bottom-3 sm:left-1/2 sm:-translate-x-1/2 sm:text-center`}
+        className={`${statusPanelClass} absolute top-3 right-3 text-right lg:top-auto lg:right-6 lg:bottom-32`}
       >
         <h2 className="font-bold">Self</h2>
         <p>Score: {self.score}</p>
@@ -103,7 +105,7 @@ export function GameTableHud({
       </section>
 
       {turnTimer && !isFinished && (
-        <p className="absolute top-[4.75rem] right-3 rounded-lg border border-indigo-300/20 bg-indigo-950/80 px-3 py-2 text-xs font-bold text-indigo-50 shadow-lg backdrop-blur-sm sm:top-3 sm:text-sm">
+        <p className="absolute top-20 left-1/2 -translate-x-1/2 rounded-lg border border-indigo-300/20 bg-indigo-950/80 px-3 py-2 text-xs font-bold whitespace-nowrap text-indigo-50 shadow-lg backdrop-blur-sm lg:top-5 lg:left-5 lg:translate-x-0 lg:text-sm">
           {turnTimer.player === selfSeat ? '내' : '상대'} 턴 남은 시간:{' '}
           {turnTimerSeconds}초
         </p>
@@ -111,11 +113,11 @@ export function GameTableHud({
 
       {!isFinished && (
         <>
-          <section className="pointer-events-auto absolute right-3 bottom-[4.75rem] left-3 rounded-xl border border-white/15 bg-slate-950/85 p-3 text-white shadow-xl backdrop-blur-sm sm:right-auto sm:bottom-3 sm:w-72">
+          <section className="pointer-events-auto absolute right-3 bottom-[4.75rem] left-3 rounded-xl border border-white/15 bg-slate-950/85 p-3 text-white shadow-xl backdrop-blur-sm sm:right-auto sm:bottom-5 sm:left-5 sm:w-80">
             <h2 className="mb-2 text-sm font-bold">Chat</h2>
             <div
               aria-live="polite"
-              className="mb-2 max-h-10 space-y-1 overflow-y-auto text-xs sm:max-h-28"
+              className="mb-2 max-h-10 space-y-1 overflow-y-auto text-xs sm:max-h-24 lg:max-h-32"
             >
               {chatMessages.map((message, index) => (
                 <p className="break-words" key={`${message.sender}:${index}`}>
@@ -142,7 +144,7 @@ export function GameTableHud({
             </form>
           </section>
 
-          <div className="pointer-events-auto absolute right-3 bottom-3 left-3 sm:left-auto sm:w-52">
+          <div className="pointer-events-auto absolute right-3 bottom-3 left-3 sm:right-5 sm:bottom-5 sm:left-auto sm:w-60">
             {actionError && (
               <p
                 className="mb-2 rounded-lg border border-red-300/20 bg-red-950/90 px-3 py-2 text-xs text-red-100 shadow-lg"
@@ -180,7 +182,7 @@ export function GameTableHud({
             <section
               aria-label="게임 결과"
               aria-modal="true"
-              className="pointer-events-auto w-full max-w-sm rounded-2xl border border-white/15 bg-slate-900 p-5 text-center text-white shadow-2xl"
+              className="pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-white/15 bg-slate-900 p-4 text-center text-white shadow-2xl sm:p-5"
               role="dialog"
             >
               <p className="text-xs font-bold tracking-[0.18em] text-slate-400">
@@ -189,7 +191,7 @@ export function GameTableHud({
               <p className="mt-2 text-3xl font-extrabold">
                 {self.result ? resultLabels[self.result] : '게임 종료'}
               </p>
-              <div className="mt-5 grid grid-cols-2 gap-2">
+              <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <button
                   className="rounded-lg bg-amber-500 px-4 py-2.5 font-bold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={rematchPending || newOpponentPending || selfAccepted}
