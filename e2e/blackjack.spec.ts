@@ -56,11 +56,11 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
       if (await dialogA.isVisible() || await dialogB.isVisible()) {
         return 'finished';
       }
-      if (await standA.isEnabled()) {
+      if (await standA.isVisible() && await standA.isEnabled()) {
         await standA.click();
         return 'acted';
       }
-      if (await standB.isEnabled()) {
+      if (await standB.isVisible() && await standB.isEnabled()) {
         await standB.click();
         return 'acted';
       }
