@@ -14,6 +14,40 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { socket } from '../shared/api/socket';
 import { GameTableScene } from '../widgets/game-table/ui/GameTableScene';
 
+type ConnectionStatus =
+  | 'connecting'
+  | 'connected'
+  | 'reconnecting'
+  | 'connection-error'
+  | 'disconnected';
+
+const connectionPresentations: Record<
+  ConnectionStatus,
+  { message: string; detail?: string; className: string }
+> = {
+  connecting: {
+    message: '서버에 연결 중입니다...',
+    detail: '첫 연결은 잠시 걸릴 수 있습니다.',
+    className: 'border-blue-400/30 bg-blue-950/60 text-blue-100',
+  },
+  connected: {
+    message: '서버에 연결되었습니다.',
+    className: 'border-emerald-400/30 bg-emerald-950/60 text-emerald-100',
+  },
+  reconnecting: {
+    message: '연결이 끊어졌습니다. 자동으로 다시 연결을 시도하고 있습니다.',
+    className: 'border-amber-400/30 bg-amber-950/60 text-amber-100',
+  },
+  'connection-error': {
+    message: '서버에 연결하지 못했습니다. 자동으로 다시 시도하고 있습니다.',
+    className: 'border-amber-400/30 bg-amber-950/60 text-amber-100',
+  },
+  disconnected: {
+    message: '서버 연결에 실패했습니다. 자동으로 다시 연결할 수 없습니다.',
+    className: 'border-red-400/30 bg-red-950/60 text-red-100',
+  },
+};
+
 const rejectionMessages: Record<GameActionRejectionReason, string> = {
   not_in_game: '진행 중인 게임이 없습니다.',
   not_your_turn: '현재 내 차례가 아닙니다.',
@@ -22,7 +56,9 @@ const rejectionMessages: Record<GameActionRejectionReason, string> = {
 };
 
 export function App() {
-  const [isConnected, setIsConnected] = useState(socket.connected);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
+    socket.connected ? 'connected' : 'connecting',
+  );
   const [matchmakingStatus, setMatchmakingStatus] =
     useState<MatchmakingStatus>('idle');
   const [match, setMatch] = useState<MatchmakingMatchedPayload | null>(null);
@@ -58,9 +94,12 @@ export function App() {
   }, [turnTimerDeadline]);
 
   useEffect(() => {
-    const handleConnect = () => setIsConnected(true);
+    const handleConnect = () => setConnectionStatus('connected');
+    const handleConnectError = () => {
+      setConnectionStatus(socket.active ? 'connection-error' : 'disconnected');
+    };
     const handleDisconnect = () => {
-      setIsConnected(false);
+      setConnectionStatus(socket.active ? 'reconnecting' : 'disconnected');
       setMatchmakingStatus('idle');
       setMatch(null);
       setGameState(null);
@@ -193,6 +232,7 @@ export function App() {
     };
 
     socket.on('connect', handleConnect);
+    socket.on('connect_error', handleConnectError);
     socket.on('disconnect', handleDisconnect);
     socket.on('matchmaking:waiting', handleWaiting);
     socket.on('matchmaking:matched', handleMatched);
@@ -207,6 +247,7 @@ export function App() {
 
     return () => {
       socket.off('connect', handleConnect);
+      socket.off('connect_error', handleConnectError);
       socket.off('disconnect', handleDisconnect);
       socket.off('matchmaking:waiting', handleWaiting);
       socket.off('matchmaking:matched', handleMatched);
@@ -222,7 +263,11 @@ export function App() {
   }, []);
 
   const handleStartGame = () => {
-    if (!socket.connected || matchmakingStatus !== 'idle') {
+    if (
+      connectionStatus !== 'connected' ||
+      !socket.connected ||
+      matchmakingStatus !== 'idle'
+    ) {
       return;
     }
 
@@ -237,6 +282,8 @@ export function App() {
       : matchmakingStatus === 'matched'
         ? '매칭 완료'
         : '게임 시작';
+  const isConnected = connectionStatus === 'connected' && socket.connected;
+  const connectionPresentation = connectionPresentations[connectionStatus];
   const canAct = Boolean(
     isConnected &&
       match &&
@@ -295,10 +342,19 @@ export function App() {
       <section className="w-full min-w-0 max-w-[760px] rounded-2xl border border-gray-700 bg-gray-800 p-4 sm:p-8">
         <p className="m-0 text-xs font-bold tracking-[0.16em]">BLACKJACK</p>
         <h1 className="mt-2 mb-4 text-[2em] font-bold">Realtime Blackjack</h1>
-        <p>
-          Socket Status:{' '}
-          <strong>{isConnected ? 'Connected' : 'Disconnected'}</strong>
-        </p>
+        <div
+          aria-live="polite"
+          className={`rounded-xl border p-3 ${connectionPresentation.className}`}
+          role="status"
+        >
+          <p className="text-xs font-bold tracking-[0.12em]">서버 연결 상태</p>
+          <p className="mt-1 font-semibold">{connectionPresentation.message}</p>
+          {connectionPresentation.detail && (
+            <p className="mt-1 text-sm opacity-80">
+              {connectionPresentation.detail}
+            </p>
+          )}
+        </div>
 
         <button
           className="mt-5 cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
