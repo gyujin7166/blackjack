@@ -4,8 +4,6 @@ const RESULT_DIALOG_NAME = '게임 결과';
 const CHAT_MESSAGE = 'playwright-e2e-message';
 
 async function expectMatched(page: Page) {
-  await expect(page.getByText(/^Room: game:/)).toBeVisible();
-  await expect(page.getByText(/^Seat: player[12]$/)).toBeVisible();
   await expect(
     page.getByRole('region', { name: '블랙잭 게임 테이블' }),
   ).toBeVisible();
@@ -102,16 +100,6 @@ test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서
     await pageB.getByRole('button', { name: '게임 시작' }).click();
     await Promise.all([expectMatched(pageA), expectMatched(pageB)]);
 
-    const roomA = await pageA.getByText(/^Room: game:/).innerText();
-    const roomB = await pageB.getByText(/^Room: game:/).innerText();
-    const seatA = await pageA.getByText(/^Seat: player[12]$/).innerText();
-    const seatB = await pageB.getByText(/^Seat: player[12]$/).innerText();
-
-    expect(roomA).toBe(roomB);
-    expect(new Set([seatA, seatB])).toEqual(
-      new Set(['Seat: player1', 'Seat: player2']),
-    );
-
     await ensureChatIsAvailable(pageA, pageB);
     await pageA.getByLabel('메시지').fill(CHAT_MESSAGE);
     await pageA.getByRole('button', { name: '전송' }).click();
@@ -126,8 +114,10 @@ test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서
     await acceptRematch(pageA, pageB);
 
     await Promise.all([expectMatched(pageA), expectMatched(pageB)]);
-    await expect(pageA.getByText(roomA, { exact: true })).toBeVisible();
-    await expect(pageB.getByText(roomB, { exact: true })).toBeVisible();
+    await Promise.all([
+      expect(pageA.getByRole('heading', { name: 'Self' })).toBeVisible(),
+      expect(pageB.getByRole('heading', { name: 'Self' })).toBeVisible(),
+    ]);
   } finally {
     await Promise.all([contextA.close(), contextB.close()]);
   }

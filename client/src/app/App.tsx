@@ -337,6 +337,34 @@ export function App() {
     setChatInput('');
   };
 
+  if (match && gameState) {
+    return (
+      <main className="h-dvh w-full overflow-hidden bg-[#06140f]">
+        <GameTableScene
+          actionError={actionError}
+          animationRound={animationRound}
+          canAct={canAct}
+          chatInput={chatInput}
+          chatMessages={chatMessages}
+          gameState={gameState}
+          newOpponentPending={newOpponentPending}
+          onChatInputChange={setChatInput}
+          onChatSubmit={handleChatSubmit}
+          onHit={() => handleAction('hit')}
+          onNewOpponent={handleNewOpponent}
+          onRematch={handleRematch}
+          onStand={() => handleAction('stand')}
+          opponentAccepted={opponentAccepted}
+          rematchPending={rematchPending}
+          selfAccepted={selfAccepted}
+          selfSeat={match.seat}
+          turnTimer={turnTimer}
+          turnTimerSeconds={turnTimerSeconds}
+        />
+      </main>
+    );
+  }
+
   return (
     <main className="grid min-h-screen place-items-center p-3 sm:p-6">
       <section className="w-full min-w-0 max-w-[760px] rounded-2xl border border-gray-700 bg-gray-800 p-4 sm:p-8">
@@ -376,36 +404,9 @@ export function App() {
         )}
 
         {match && (
-          <div className="mt-4 rounded-[10px] bg-gray-900 p-4">
-            <p className="my-1 [overflow-wrap:anywhere]">Room: {match.roomId}</p>
-            <p className="my-1 [overflow-wrap:anywhere]">Seat: {match.seat}</p>
-          </div>
-        )}
-
-        {match && gameState && (
-          <div className="mt-6">
-            <GameTableScene
-              actionError={actionError}
-              animationRound={animationRound}
-              canAct={canAct}
-              chatInput={chatInput}
-              chatMessages={chatMessages}
-              gameState={gameState}
-              newOpponentPending={newOpponentPending}
-              onChatInputChange={setChatInput}
-              onChatSubmit={handleChatSubmit}
-              onHit={() => handleAction('hit')}
-              onNewOpponent={handleNewOpponent}
-              onRematch={handleRematch}
-              onStand={() => handleAction('stand')}
-              opponentAccepted={opponentAccepted}
-              rematchPending={rematchPending}
-              selfAccepted={selfAccepted}
-              selfSeat={match.seat}
-              turnTimer={turnTimer}
-              turnTimerSeconds={turnTimerSeconds}
-            />
-          </div>
+          <p className="mt-4 rounded-[10px] bg-gray-900 p-4 text-gray-200">
+            게임 테이블을 준비하고 있습니다.
+          </p>
         )}
       </section>
     </main>

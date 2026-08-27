@@ -224,7 +224,7 @@ describe('matchmaking', () => {
     expect(screen.getByRole('button', { name: '상대 찾는 중...' })).toBeDisabled();
   });
 
-  it('shows waiting, room, and seat information', () => {
+  it('shows waiting and a preparation state without internal room or seat data', () => {
     render(<App />);
     serverEmit('matchmaking:waiting');
 
@@ -232,8 +232,9 @@ describe('matchmaking', () => {
 
     serverEmit('matchmaking:matched', playerOneMatch);
 
-    expect(screen.getByText('Room: game:test-room')).toBeVisible();
-    expect(screen.getByText('Seat: player1')).toBeVisible();
+    expect(screen.getByText('게임 테이블을 준비하고 있습니다.')).toBeVisible();
+    expect(screen.queryByText(/Room:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Seat:/)).not.toBeInTheDocument();
   });
 });
 
@@ -295,6 +296,10 @@ describe('3D game table', () => {
     serverEmit('game:state', gameState());
 
     expect(screen.getByTestId('game-table-scene')).toBeVisible();
+    expect(
+      screen.queryByRole('heading', { name: 'Realtime Blackjack' }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('passes the current matched seat as selfSeat', () => {
@@ -773,7 +778,7 @@ describe('rematch', () => {
     expect(screen.getByRole('button', { name: '재대결' })).toBeEnabled();
   });
 
-  it('keeps room and seat while returning to normal round controls', () => {
+  it('keeps the game scene while returning to normal round controls', () => {
     renderMatched();
     const current = gameState();
     serverEmit('game:state', gameState({ phase: 'finished', player1: current.player1 }));
@@ -785,8 +790,9 @@ describe('rematch', () => {
 
     serverEmit('game:state', gameState({ phase: 'player1' }));
 
-    expect(screen.getByText('Room: game:test-room')).toBeVisible();
-    expect(screen.getByText('Seat: player1')).toBeVisible();
+    expect(screen.getByTestId('game-table-scene')).toBeVisible();
+    expect(screen.queryByText(/Room:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Seat:/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '재대결' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hit' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Stand' })).toBeEnabled();
@@ -865,7 +871,7 @@ describe('new opponent', () => {
       seat: 'player2',
     });
 
-    expect(screen.getByText('Room: game:new-room')).toBeVisible();
+    expect(screen.getByText('게임 테이블을 준비하고 있습니다.')).toBeVisible();
     expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
     expect(screen.queryByText('A♠')).not.toBeInTheDocument();
   });
