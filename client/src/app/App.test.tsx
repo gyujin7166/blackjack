@@ -13,6 +13,7 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
   const handlers = new Map<string, Set<Handler>>();
   const socketMock = {
     connected: true,
+    active: true,
     on: vi.fn((event: string, handler: Handler) => {
       const eventHandlers = handlers.get(event) ?? new Set<Handler>();
       eventHandlers.add(handler);
@@ -24,9 +25,22 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
       return socketMock;
     }),
     emit: vi.fn(() => socketMock),
-    connect: vi.fn(() => socketMock),
-    disconnect: vi.fn(() => socketMock),
+    connect: vi.fn(() => {
+      socketMock.active = true;
+      return socketMock;
+    }),
+    disconnect: vi.fn(() => {
+      socketMock.connected = false;
+      socketMock.active = false;
+      return socketMock;
+    }),
     serverEmit(event: string, payload?: unknown) {
+      if (event === 'connect') {
+        socketMock.connected = true;
+        socketMock.active = true;
+      } else if (event === 'disconnect' || event === 'connect_error') {
+        socketMock.connected = false;
+      }
       handlers.get(event)?.forEach((handler) => handler(payload));
     },
   };
@@ -100,12 +114,104 @@ function renderMatched(match = playerOneMatch) {
 beforeEach(() => {
   handlers.clear();
   socketMock.connected = true;
+  socketMock.active = true;
   vi.clearAllMocks();
 });
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+});
+
+describe('connection status', () => {
+  it('shows the initial connection attempt and disables matchmaking', () => {
+    socketMock.connected = false;
+    socketMock.active = false;
+
+    render(<App />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버에 연결 중입니다...',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '첫 연결은 잠시 걸릴 수 있습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeDisabled();
+    expect(socketMock.connect).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows the connected state and enables matchmaking after connect', () => {
+    socketMock.connected = false;
+    socketMock.active = false;
+    render(<App />);
+
+    act(() => socketMock.serverEmit('connect'));
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버에 연결되었습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
+  });
+
+  it('shows an automatic retry message after a recoverable connect error', () => {
+    socketMock.connected = false;
+    socketMock.active = false;
+    render(<App />);
+    socketMock.active = true;
+
+    act(() => socketMock.serverEmit('connect_error', new Error('internal')));
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버에 연결하지 못했습니다. 자동으로 다시 시도하고 있습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeDisabled();
+    expect(screen.queryByText('internal')).not.toBeInTheDocument();
+  });
+
+  it('shows a terminal disconnected state when automatic retry is inactive', () => {
+    socketMock.connected = false;
+    socketMock.active = false;
+    render(<App />);
+    socketMock.active = false;
+
+    act(() => socketMock.serverEmit('connect_error', new Error('internal')));
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버 연결에 실패했습니다. 자동으로 다시 연결할 수 없습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeDisabled();
+  });
+
+  it('shows reconnecting after a recoverable disconnect and recovers on connect', () => {
+    render(<App />);
+    socketMock.active = true;
+
+    act(() => socketMock.serverEmit('disconnect', 'transport close'));
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '연결이 끊어졌습니다. 자동으로 다시 연결을 시도하고 있습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeDisabled();
+
+    act(() => socketMock.serverEmit('connect'));
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버에 연결되었습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
+  });
+
+  it('shows a terminal disconnected state when reconnect is inactive', () => {
+    render(<App />);
+    socketMock.active = false;
+
+    act(() => socketMock.serverEmit('disconnect', 'io server disconnect'));
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버 연결에 실패했습니다. 자동으로 다시 연결할 수 없습니다.',
+    );
+    expect(screen.getByRole('button', { name: '게임 시작' })).toBeDisabled();
+  });
 });
 
 describe('matchmaking', () => {
@@ -776,7 +882,9 @@ describe('new opponent', () => {
       screen.getByText('상대 플레이어가 새 상대 찾기를 선택했습니다.'),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
-    expect(screen.getByText('Connected')).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버에 연결되었습니다.',
+    );
   });
 
   it('clears the opponent-left notice when starting matchmaking again', () => {
@@ -1144,7 +1252,9 @@ describe('disconnect', () => {
     socketMock.connected = false;
     act(() => socketMock.serverEmit('disconnect', 'transport close'));
 
-    expect(screen.getByText('Disconnected')).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '연결이 끊어졌습니다. 자동으로 다시 연결을 시도하고 있습니다.',
+    );
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -1173,7 +1283,9 @@ describe('disconnect', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(screen.getByText('상대 플레이어의 연결이 종료되었습니다.')).toBeVisible();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
-    expect(screen.getByText('Connected')).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      '서버에 연결되었습니다.',
+    );
   });
 
   it('allows matchmaking again and clears the opponent disconnect message', () => {
