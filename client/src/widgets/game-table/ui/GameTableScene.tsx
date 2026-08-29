@@ -6,7 +6,8 @@ import type {
   PlayerSeat,
 } from '@blackjack/shared';
 import { Canvas, useThree } from '@react-three/fiber';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CanvasTexture, LinearFilter, Shape, SRGBColorSpace } from 'three';
 import type { PerspectiveCamera } from 'three';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
@@ -30,8 +31,49 @@ interface GameTableSceneProps
 
 type Vector3Tuple = [number, number, number];
 
-const DEAL_ORIGIN: Vector3Tuple = [4.25, 0.54, -2.32];
+const DEAL_ORIGIN: Vector3Tuple = [5.75, 0.64, -2.14];
+const MOBILE_DEAL_ORIGIN: Vector3Tuple = [2.1, 0.64, -2.14];
 const DEAL_STAGGER_SECONDS = 0.12;
+
+function createTableShape(
+  halfWidth: number,
+  top: number,
+  sideBottom: number,
+  centerBottom: number,
+) {
+  const shape = new Shape();
+  shape.moveTo(-halfWidth, top);
+  shape.lineTo(halfWidth, top);
+  shape.lineTo(halfWidth - 0.55, sideBottom);
+  shape.quadraticCurveTo(halfWidth * 0.72, centerBottom, 0, centerBottom);
+  shape.quadraticCurveTo(
+    -halfWidth * 0.72,
+    centerBottom,
+    -halfWidth + 0.55,
+    sideBottom,
+  );
+  shape.closePath();
+  return shape;
+}
+
+const FRAME_SHAPE = createTableShape(9.4, 3.9, -2.3, -3.92);
+const FELT_SHAPE = createTableShape(9.05, 3.65, -2.05, -3.3);
+const FRAME_EXTRUDE_OPTIONS = {
+  bevelEnabled: true,
+  bevelSegments: 3,
+  bevelSize: 0.1,
+  bevelThickness: 0.08,
+  curveSegments: 48,
+  depth: 0.24,
+};
+const FELT_EXTRUDE_OPTIONS = {
+  bevelEnabled: true,
+  bevelSegments: 2,
+  bevelSize: 0.05,
+  bevelThickness: 0.035,
+  curveSegments: 48,
+  depth: 0.06,
+};
 
 type DealerSequenceStage =
   | 'playing'
@@ -47,10 +89,12 @@ function FixedCamera() {
 
   useEffect(() => {
     const isPortrait = viewportWidth / viewportHeight < 0.8;
-    const position: Vector3Tuple = isPortrait ? [0, 15, 12] : [0, 10.8, 7.4];
+    const position: Vector3Tuple = isPortrait
+      ? [0, 18.5, 4]
+      : [0, 20.5, 2];
     camera.position.set(...position);
-    (camera as PerspectiveCamera).fov = isPortrait ? 55 : 44;
-    camera.lookAt(0, 0, -0.15);
+    (camera as PerspectiveCamera).fov = isPortrait ? 32 : 24;
+    camera.lookAt(0, 0, isPortrait ? 0.2 : 0.55);
     camera.updateProjectionMatrix();
   }, [camera, viewportHeight, viewportWidth]);
 
@@ -70,26 +114,39 @@ function PlayerHand({
   x: number;
   z: number;
 }) {
-  const spacing = 0.58;
+  const isPortrait = useThree(
+    (state) => state.size.width / state.size.height < 0.8,
+  );
+  const handX = isPortrait ? Math.sign(x) * 1.3 : x;
+  const dealOrigin = isPortrait ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
+  const spacing = 0.56;
   const ownerOrder = owner === 'player1' ? 0 : 1;
 
   return (
     <>
-      {cards.map((card, index) => (
-        <DealtCard3D
-          card={card}
-          delay={index < 2
-            ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS
-            : 0}
-          key={`${animationRound}:${owner}:${index}`}
-          startPosition={DEAL_ORIGIN}
-          targetPosition={[
-            x + (index - (cards.length - 1) / 2) * spacing,
-            0.38 + index * 0.006,
-            z,
-          ]}
-        />
-      ))}
+      {cards.map((card, index) => {
+        const centerOffset = index - (cards.length - 1) / 2;
+        const rotationY = Math.max(
+          -0.2,
+          Math.min(0.2, -centerOffset * 0.18),
+        );
+        return (
+          <DealtCard3D
+            card={card}
+            delay={index < 2
+              ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS
+              : 0}
+            key={`${animationRound}:${owner}:${index}`}
+            startPosition={dealOrigin}
+            targetPosition={[
+              handX + centerOffset * spacing,
+              0.5 + index * 0.01,
+              z + Math.abs(centerOffset) * 0.075,
+            ]}
+            targetRotation={[0, rotationY, 0]}
+          />
+        );
+      })}
     </>
   );
 }
@@ -111,7 +168,11 @@ function DealerHand({
   onHoleCardRevealComplete: () => void;
   revealHoleCard: boolean;
 }) {
-  const spacing = 0.58;
+  const isPortrait = useThree(
+    (state) => state.size.width / state.size.height < 0.8,
+  );
+  const dealOrigin = isPortrait ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
+  const spacing = 0.64;
   const visibleIndices = [0, 1, ...drawIndices].filter(
     (index) => index < cards.length,
   );
@@ -123,8 +184,8 @@ function DealerHand({
         if (!card) return null;
         const position: Vector3Tuple = [
           (visibleIndex - (visibleIndices.length - 1) / 2) * spacing,
-          0.38 + index * 0.006,
-          -2.05,
+          0.5 + index * 0.009,
+          -2.02,
         ];
 
         if (index === 0) {
@@ -133,7 +194,7 @@ function DealerHand({
               card={card}
               delay={2 * DEAL_STAGGER_SECONDS}
               key={`${animationRound}:dealer:0`}
-              startPosition={DEAL_ORIGIN}
+              startPosition={dealOrigin}
               targetPosition={position}
             />
           );
@@ -148,7 +209,7 @@ function DealerHand({
               onInitialDealComplete={onHoleCardDealComplete}
               onRevealComplete={onHoleCardRevealComplete}
               reveal={revealHoleCard}
-              startPosition={DEAL_ORIGIN}
+              startPosition={dealOrigin}
               targetPosition={position}
             />
           );
@@ -160,7 +221,7 @@ function DealerHand({
             delay={0}
             key={`${animationRound}:dealer:${index}`}
             onInitialDealComplete={onDrawComplete}
-            startPosition={DEAL_ORIGIN}
+            startPosition={dealOrigin}
             targetPosition={position}
           />
         );
@@ -170,42 +231,125 @@ function DealerHand({
 }
 
 function VisualDeck() {
+  const isPortrait = useThree(
+    (state) => state.size.width / state.size.height < 0.8,
+  );
+  const position: Vector3Tuple = isPortrait
+    ? [2.25, 0.43, -2.72]
+    : [5.9, 0.4, -2.72];
+
   return (
-    <group position={[4.25, 0.42, -2.32]} rotation={[0, -0.18, 0]}>
-      {[0, 0.04, 0.08].map((height, index) => (
-        <Card3D hidden key={height} position={[0, height, index * 0.012]} />
-      ))}
+    <group position={position} rotation={[0, -0.25, 0]}>
+      <mesh position={[0, 0.01, 0]}>
+        <boxGeometry args={[1.9, 0.12, 1.16]} />
+        <meshStandardMaterial color="#101d2d" roughness={0.58} />
+      </mesh>
+      <mesh position={[0, 0.1, 0.01]}>
+        <boxGeometry args={[1.58, 0.08, 0.98]} />
+        <meshStandardMaterial color="#263b55" roughness={0.56} />
+      </mesh>
+      <mesh position={[-0.87, 0.16, -0.02]}>
+        <boxGeometry args={[0.14, 0.26, 1.08]} />
+        <meshStandardMaterial color="#172a40" roughness={0.52} />
+      </mesh>
+      <mesh position={[0.87, 0.16, -0.02]}>
+        <boxGeometry args={[0.14, 0.26, 1.08]} />
+        <meshStandardMaterial color="#172a40" roughness={0.52} />
+      </mesh>
+      <mesh position={[0, 0.25, -0.43]} rotation={[0.14, 0, 0]}>
+        <boxGeometry args={[1.82, 0.13, 0.42]} />
+        <meshStandardMaterial color="#223a55" roughness={0.5} />
+      </mesh>
+      <group position={[0, 0.18, 0.01]} scale={[0.7, 0.7, 0.7]}>
+        {[0, 0.045, 0.09].map((height, index) => (
+          <Card3D
+            hidden
+            key={height}
+            position={[index * 0.015, height, index * 0.018]}
+          />
+        ))}
+      </group>
+      <mesh position={[0, 0.16, 0.52]}>
+        <boxGeometry args={[1.3, 0.16, 0.13]} />
+        <meshStandardMaterial color="#223a55" roughness={0.5} />
+      </mesh>
+      <mesh position={[-0.68, 0.15, 0.42]}>
+        <boxGeometry args={[0.18, 0.2, 0.24]} />
+        <meshStandardMaterial color="#172a40" roughness={0.52} />
+      </mesh>
+      <mesh position={[0.68, 0.15, 0.42]}>
+        <boxGeometry args={[0.18, 0.2, 0.24]} />
+        <meshStandardMaterial color="#172a40" roughness={0.52} />
+      </mesh>
     </group>
+  );
+}
+
+function TableMarking() {
+  const texture = useMemo(() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1024;
+    canvas.height = 256;
+    const context = canvas.getContext('2d');
+
+    if (context) {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      context.textAlign = 'center';
+      context.textBaseline = 'middle';
+      context.fillStyle = '#e9e3d0';
+      context.font = '700 90px Arial, sans-serif';
+      context.letterSpacing = '16px';
+      context.fillText('BLACKJACK', 512, 98);
+      context.fillStyle = '#d9b85e';
+      context.font = '54px Georgia, serif';
+      context.letterSpacing = '22px';
+      context.fillText('♠  ♥  ♦  ♣', 512, 192);
+    }
+
+    const canvasTexture = new CanvasTexture(canvas);
+    canvasTexture.colorSpace = SRGBColorSpace;
+    canvasTexture.minFilter = LinearFilter;
+    return canvasTexture;
+  }, []);
+
+  useEffect(() => () => texture.dispose(), [texture]);
+
+  return (
+    <mesh position={[0, 0.53, 1.02]} rotation={[-Math.PI / 2, 0, 0]}>
+      <planeGeometry args={[5.25, 1.28]} />
+      <meshBasicMaterial map={texture} transparent />
+    </mesh>
   );
 }
 
 function Table() {
   return (
     <group>
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[12.6, 0.32, 7.8]} />
-        <meshStandardMaterial color="#075c42" roughness={0.92} />
+      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[FRAME_SHAPE, FRAME_EXTRUDE_OPTIONS]} />
+        <meshStandardMaterial color="#142536" metalness={0.06} roughness={0.56} />
       </mesh>
-      <mesh position={[0, 0.04, -3.96]}>
-        <boxGeometry args={[13.05, 0.46, 0.34]} />
-        <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
+      <mesh position={[0, 0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <extrudeGeometry args={[FELT_SHAPE, FELT_EXTRUDE_OPTIONS]} />
+        <meshStandardMaterial color="#066b8d" roughness={0.9} />
       </mesh>
-      <mesh position={[0, 0.04, 3.96]}>
-        <boxGeometry args={[13.05, 0.46, 0.34]} />
-        <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
+      <mesh
+        position={[0, 0.49, -1.75]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        scale={[1.15, 0.42, 1]}
+      >
+        <ringGeometry args={[5.12, 5.17, 128, 1, Math.PI + 0.12, Math.PI - 0.24]} />
+        <meshBasicMaterial color="#d9d0ad" />
       </mesh>
-      <mesh position={[-6.38, 0.04, 0]}>
-        <boxGeometry args={[0.34, 0.46, 8.24]} />
-        <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
+      <mesh
+        position={[0, 0.485, -1.55]}
+        rotation={[-Math.PI / 2, 0, 0]}
+        scale={[1.15, 0.52, 1]}
+      >
+        <ringGeometry args={[5.92, 5.96, 128, 1, Math.PI + 0.12, Math.PI - 0.24]} />
+        <meshBasicMaterial color="#c2ad6f" />
       </mesh>
-      <mesh position={[6.38, 0.04, 0]}>
-        <boxGeometry args={[0.34, 0.46, 8.24]} />
-        <meshStandardMaterial color="#4d2e1d" roughness={0.78} />
-      </mesh>
-      <mesh position={[0, 0.172, 0.68]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[2.35, 2.38, 64, 1, 0.18, Math.PI - 0.36]} />
-        <meshBasicMaterial color="#d6b971" />
-      </mesh>
+      <TableMarking />
     </group>
   );
 }
@@ -216,8 +360,8 @@ function GameTableRound({
   animationRound,
   ...hudProps
 }: GameTableSceneProps) {
-  const player1X = selfSeat === 'player1' ? 2.55 : -2.55;
-  const player2X = selfSeat === 'player2' ? 2.55 : -2.55;
+  const player1X = selfSeat === 'player1' ? 4.45 : -4.45;
+  const player2X = selfSeat === 'player2' ? 4.45 : -4.45;
   const initialPlan = createDealerPresentationPlan({
     dealerHand: gameState.dealer.hand,
     phase: gameState.phase,
@@ -297,15 +441,15 @@ function GameTableRound({
     >
       <Canvas
         aria-hidden="true"
-        camera={{ fov: 44, near: 0.1, far: 50, position: [0, 10.8, 7.4] }}
+        camera={{ fov: 24, near: 0.1, far: 50, position: [0, 20.5, 2] }}
         dpr={[1, 1.5]}
         frameloop="demand"
         gl={{ alpha: false, antialias: true }}
       >
-        <color attach="background" args={['#06140f']} />
-        <ambientLight intensity={1.35} />
-        <directionalLight intensity={2.1} position={[-4, 8, 5]} />
-        <pointLight color="#d8f3df" intensity={18} position={[4, 5, -3]} />
+        <color attach="background" args={['#04171e']} />
+        <ambientLight intensity={1.15} />
+        <directionalLight color="#e6f4f5" intensity={2.35} position={[-4, 9, 5]} />
+        <pointLight color="#7dd8e6" intensity={17} position={[4, 5, -3]} />
         <FixedCamera />
         <Table />
         <PlayerHand
@@ -313,14 +457,14 @@ function GameTableRound({
           cards={gameState.player1.hand}
           owner="player1"
           x={player1X}
-          z={1.75}
+          z={1.82}
         />
         <PlayerHand
           animationRound={animationRound}
           cards={gameState.player2.hand}
           owner="player2"
           x={player2X}
-          z={1.75}
+          z={1.82}
         />
         <DealerHand
           animationRound={animationRound}
