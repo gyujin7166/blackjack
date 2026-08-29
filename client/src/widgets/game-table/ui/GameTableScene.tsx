@@ -136,6 +136,7 @@ function PlayerHand({
             delay={index < 2
               ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS
               : 0}
+            initialDealSound={index < 2 ? 'initialDeal' : 'draw'}
             key={`${animationRound}:${owner}:${index}`}
             startPosition={dealOrigin}
             targetPosition={[
@@ -193,6 +194,7 @@ function DealerHand({
             <DealtCard3D
               card={card}
               delay={2 * DEAL_STAGGER_SECONDS}
+              initialDealSound="initialDeal"
               key={`${animationRound}:dealer:0`}
               startPosition={dealOrigin}
               targetPosition={position}
@@ -205,6 +207,7 @@ function DealerHand({
             <DealerRevealCard3D
               card={'hidden' in card ? null : card}
               dealDelay={5 * DEAL_STAGGER_SECONDS}
+              initialDealSound="initialDeal"
               key={`${animationRound}:dealer:1`}
               onInitialDealComplete={onHoleCardDealComplete}
               onRevealComplete={onHoleCardRevealComplete}
@@ -219,6 +222,7 @@ function DealerHand({
           <DealtCard3D
             card={card}
             delay={0}
+            initialDealSound="draw"
             key={`${animationRound}:dealer:${index}`}
             onInitialDealComplete={onDrawComplete}
             startPosition={dealOrigin}

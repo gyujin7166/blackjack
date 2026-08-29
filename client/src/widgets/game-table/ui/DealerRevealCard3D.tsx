@@ -5,6 +5,7 @@ import { useLayoutEffect, useRef, useState } from 'react';
 import type { Group } from 'three';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
+import type { GameSound } from '../lib/gameSounds';
 import { DealtCard3D } from './DealtCard3D';
 
 type Vector3Tuple = [number, number, number];
@@ -12,6 +13,7 @@ type Vector3Tuple = [number, number, number];
 interface DealerRevealCard3DProps {
   card: Card | null;
   dealDelay: number;
+  initialDealSound?: GameSound;
   onInitialDealComplete: () => void;
   onRevealComplete: () => void;
   reveal: boolean;
@@ -22,6 +24,7 @@ interface DealerRevealCard3DProps {
 export function DealerRevealCard3D({
   card,
   dealDelay,
+  initialDealSound,
   onInitialDealComplete,
   onRevealComplete,
   reveal,
@@ -89,6 +92,7 @@ export function DealerRevealCard3D({
   return (
     <DealtCard3D
       delay={dealDelay}
+      initialDealSound={initialDealSound}
       onInitialDealComplete={onInitialDealComplete}
       startPosition={startPosition}
       targetPosition={targetPosition}
