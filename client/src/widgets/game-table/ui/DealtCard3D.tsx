@@ -5,11 +5,17 @@ import { type ReactNode, useLayoutEffect, useRef } from 'react';
 import type { Group } from 'three';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
+import {
+  getGameSoundTrigger,
+  playGameSound,
+  type GameSound,
+} from '../lib/gameSounds';
 
 type Vector3Tuple = [number, number, number];
 
 type DealtCard3DProps = {
   delay: number;
+  initialDealSound?: GameSound;
   onInitialDealComplete?: () => void;
   startPosition: Vector3Tuple;
   targetPosition: Vector3Tuple;
@@ -25,6 +31,7 @@ export function DealtCard3D({
   children,
   hidden = false,
   delay,
+  initialDealSound,
   onInitialDealComplete,
   startPosition,
   targetPosition,
@@ -33,6 +40,7 @@ export function DealtCard3D({
   const groupRef = useRef<Group>(null);
   const previousTargetRef = useRef<Vector3Tuple | null>(null);
   const initialDealCompletedRef = useRef(false);
+  const initialDealSoundPlayedRef = useRef(false);
   const initialDealCompleteCallbackRef = useRef(onInitialDealComplete);
   initialDealCompleteCallbackRef.current = onInitialDealComplete;
   const invalidate = useThree((state) => state.invalidate);
@@ -60,6 +68,15 @@ export function DealtCard3D({
     }
 
     previousTargetRef.current = [targetX, targetY, targetZ];
+    if (
+      !initialDealCompletedRef.current &&
+      !initialDealSoundPlayedRef.current &&
+      initialDealSound &&
+      getGameSoundTrigger(initialDealSound) === 'start'
+    ) {
+      initialDealSoundPlayedRef.current = true;
+      playGameSound(initialDealSound);
+    }
     const positionTween = gsap.to(group.position, {
       x: targetX,
       y: targetY,
@@ -73,6 +90,14 @@ export function DealtCard3D({
         initialDealCompletedRef.current = true;
         invalidate();
         if (isInitialDeal) {
+          if (
+            initialDealSound &&
+            !initialDealSoundPlayedRef.current &&
+            getGameSoundTrigger(initialDealSound) === 'complete'
+          ) {
+            initialDealSoundPlayedRef.current = true;
+            playGameSound(initialDealSound);
+          }
           initialDealCompleteCallbackRef.current?.();
         }
       },
@@ -95,6 +120,7 @@ export function DealtCard3D({
     };
   }, [
     delay,
+    initialDealSound,
     invalidate,
     startX,
     startY,
