@@ -37,7 +37,7 @@ const resultLabels: Record<GameResult, string> = {
 };
 
 const statusPanelClass =
-  'rounded-lg border border-white/15 bg-slate-950/75 px-2.5 py-1.5 text-[11px] text-white shadow-lg backdrop-blur-sm sm:px-3 sm:py-2 sm:text-sm';
+  'rounded-md border border-white/10 bg-slate-950/45 px-2 py-1 text-[10px] leading-tight text-white/85 backdrop-blur-sm sm:text-xs';
 
 export function GameTableHud({
   gameState,
@@ -71,7 +71,7 @@ export function GameTableHud({
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       <section
-        className={`${statusPanelClass} absolute top-3 left-3 lg:top-auto lg:bottom-32 lg:left-6`}
+        className={`${statusPanelClass} absolute top-3 left-3 lg:top-auto lg:bottom-24 lg:left-[10%]`}
       >
         <h2 className="font-bold">Opponent</h2>
         <p>Score: {opponent.score}</p>
@@ -82,7 +82,7 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute top-3 left-1/2 -translate-x-1/2 text-center`}
+        className={`${statusPanelClass} absolute top-3 left-1/2 -translate-x-1/2 text-center lg:top-4`}
       >
         <h2 className="font-bold">Dealer</h2>
         <p>
@@ -94,7 +94,7 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute top-3 right-3 text-right lg:top-auto lg:right-6 lg:bottom-32`}
+        className={`${statusPanelClass} absolute top-3 right-3 text-right lg:top-auto lg:right-[10%] lg:bottom-24`}
       >
         <h2 className="font-bold">Self</h2>
         <p>Score: {self.score}</p>
@@ -105,7 +105,7 @@ export function GameTableHud({
       </section>
 
       {turnTimer && !isFinished && (
-        <p className="absolute top-20 left-1/2 -translate-x-1/2 rounded-lg border border-indigo-300/20 bg-indigo-950/80 px-3 py-2 text-xs font-bold whitespace-nowrap text-indigo-50 shadow-lg backdrop-blur-sm lg:top-5 lg:left-5 lg:translate-x-0 lg:text-sm">
+        <p className="absolute top-16 left-1/2 -translate-x-1/2 rounded-md border border-indigo-200/10 bg-indigo-950/50 px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-indigo-50/90 backdrop-blur-sm lg:top-4 lg:left-4 lg:translate-x-0">
           {turnTimer.player === selfSeat ? '내' : '상대'} 턴 남은 시간:{' '}
           {turnTimerSeconds}초
         </p>
@@ -113,11 +113,11 @@ export function GameTableHud({
 
       {!isFinished && (
         <>
-          <section className="pointer-events-auto absolute right-3 bottom-[4.75rem] left-3 rounded-xl border border-white/15 bg-slate-950/85 p-3 text-white shadow-xl backdrop-blur-sm sm:right-auto sm:bottom-5 sm:left-5 sm:w-80">
-            <h2 className="mb-2 text-sm font-bold">Chat</h2>
+          <section className="pointer-events-auto absolute right-3 bottom-[4.75rem] left-3 rounded-lg border border-white/10 bg-slate-950/55 p-2 text-white/90 backdrop-blur-sm sm:right-auto sm:bottom-4 sm:left-4 sm:w-64">
+            <h2 className="mb-1 text-xs font-bold">Chat</h2>
             <div
               aria-live="polite"
-              className="mb-2 max-h-10 space-y-1 overflow-y-auto text-xs sm:max-h-24 lg:max-h-32"
+              className="mb-1.5 max-h-10 space-y-1 overflow-y-auto text-[11px] sm:max-h-16"
             >
               {chatMessages.map((message, index) => (
                 <p className="break-words" key={`${message.sender}:${index}`}>
@@ -129,7 +129,7 @@ export function GameTableHud({
             <form className="grid grid-cols-[1fr_auto] gap-2" onSubmit={onChatSubmit}>
               <input
                 aria-label="메시지"
-                className="min-w-0 rounded-md border border-white/20 bg-slate-900/90 px-2 py-1.5 text-xs text-white outline-none focus:border-blue-400"
+                className="min-w-0 rounded-md border border-white/15 bg-slate-900/75 px-2 py-1.5 text-xs text-white outline-none focus:border-blue-400"
                 maxLength={CHAT_MESSAGE_MAX_LENGTH}
                 onChange={(event) => onChatInputChange(event.target.value)}
                 type="text"
@@ -144,7 +144,7 @@ export function GameTableHud({
             </form>
           </section>
 
-          <div className="pointer-events-auto absolute right-3 bottom-3 left-3 sm:right-5 sm:bottom-5 sm:left-auto sm:w-60">
+          <div className="pointer-events-auto absolute right-3 bottom-3 left-3 sm:right-4 sm:bottom-4 sm:left-auto sm:w-52">
             {actionError && (
               <p
                 className="mb-2 rounded-lg border border-red-300/20 bg-red-950/90 px-3 py-2 text-xs text-red-100 shadow-lg"
@@ -155,7 +155,7 @@ export function GameTableHud({
             )}
             <div className="grid grid-cols-2 gap-2">
               <button
-                className="rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-900 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-gray-100 px-3 py-2.5 text-sm font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canAct}
                 onClick={onHit}
                 type="button"
@@ -163,7 +163,7 @@ export function GameTableHud({
                 Hit
               </button>
               <button
-                className="rounded-lg bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-900 shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-lg bg-gray-100 px-3 py-2.5 text-sm font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
                 disabled={!canAct}
                 onClick={onStand}
                 type="button"

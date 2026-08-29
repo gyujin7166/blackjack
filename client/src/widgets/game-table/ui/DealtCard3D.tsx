@@ -13,6 +13,7 @@ type DealtCard3DProps = {
   onInitialDealComplete?: () => void;
   startPosition: Vector3Tuple;
   targetPosition: Vector3Tuple;
+  targetRotation?: Vector3Tuple;
 } & (
   | { card: Card; children?: never; hidden?: false }
   | { card?: never; children?: never; hidden: true }
@@ -27,6 +28,7 @@ export function DealtCard3D({
   onInitialDealComplete,
   startPosition,
   targetPosition,
+  targetRotation = [0, 0, 0],
 }: DealtCard3DProps) {
   const groupRef = useRef<Group>(null);
   const previousTargetRef = useRef<Vector3Tuple | null>(null);
@@ -36,6 +38,7 @@ export function DealtCard3D({
   const invalidate = useThree((state) => state.invalidate);
   const [startX, startY, startZ] = startPosition;
   const [targetX, targetY, targetZ] = targetPosition;
+  const [rotationX, rotationY, rotationZ] = targetRotation;
 
   useLayoutEffect(() => {
     const group = groupRef.current;
@@ -57,7 +60,7 @@ export function DealtCard3D({
     }
 
     previousTargetRef.current = [targetX, targetY, targetZ];
-    const tween = gsap.to(group.position, {
+    const positionTween = gsap.to(group.position, {
       x: targetX,
       y: targetY,
       z: targetZ,
@@ -75,9 +78,20 @@ export function DealtCard3D({
       },
       onUpdate: invalidate,
     });
+    const rotationTween = gsap.to(group.rotation, {
+      x: rotationX,
+      y: rotationY,
+      z: rotationZ,
+      delay: isFirstTarget || isStrictModeReplay ? delay : 0,
+      duration: isFirstTarget || isStrictModeReplay ? 0.36 : 0.18,
+      ease: 'power2.out',
+      overwrite: true,
+      onUpdate: invalidate,
+    });
 
     return () => {
-      tween.kill();
+      positionTween.kill();
+      rotationTween.kill();
     };
   }, [
     delay,
@@ -88,6 +102,9 @@ export function DealtCard3D({
     targetX,
     targetY,
     targetZ,
+    rotationX,
+    rotationY,
+    rotationZ,
   ]);
 
   return (
