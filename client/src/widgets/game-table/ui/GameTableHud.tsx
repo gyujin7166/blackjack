@@ -6,7 +6,19 @@ import type {
   TurnTimerPayload,
 } from '@blackjack/shared';
 import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
-import type { FormEvent } from 'react';
+import {
+  type CSSProperties,
+  type FormEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
+
+import {
+  calculateHudLayout,
+  HUD_REFERENCE_HEIGHT,
+  HUD_REFERENCE_WIDTH,
+} from '../lib/hudLayout';
 
 export interface GameTableHudProps {
   gameState: GameStatePayload;
@@ -36,8 +48,10 @@ const resultLabels: Record<GameResult, string> = {
   push: '무승부',
 };
 
-const statusPanelClass =
-  'rounded-md border border-white/10 bg-slate-950/45 px-2 py-1 text-[10px] leading-tight text-white/85 backdrop-blur-sm sm:text-xs';
+const desktopStatusPanelClass =
+  'min-w-[120px] rounded-md border border-white/15 bg-slate-950/60 px-3 py-2 text-sm leading-snug text-white/90 backdrop-blur-sm';
+const portraitStatusPanelClass =
+  'rounded-md border border-white/15 bg-slate-950/60 px-2 py-1.5 text-[11px] leading-tight text-white/90 backdrop-blur-sm';
 
 export function GameTableHud({
   gameState,
@@ -67,11 +81,61 @@ export function GameTableHud({
   const isFinished = gameState.phase === 'finished';
   const showFinishedResult = isFinished && dealerSequenceComplete;
   const showCanonicalResults = !isFinished || dealerSequenceComplete;
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const [hudLayout, setHudLayout] = useState(() =>
+    calculateHudLayout(HUD_REFERENCE_WIDTH, HUD_REFERENCE_HEIGHT));
+
+  useLayoutEffect(() => {
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+
+    const updateLayout = () => {
+      const { width, height } = overlay.getBoundingClientRect();
+      const nextLayout = calculateHudLayout(width, height);
+      setHudLayout((currentLayout) =>
+        currentLayout.isPortrait === nextLayout.isPortrait &&
+        currentLayout.offsetX === nextLayout.offsetX &&
+        currentLayout.offsetY === nextLayout.offsetY &&
+        currentLayout.scale === nextLayout.scale
+          ? currentLayout
+          : nextLayout);
+    };
+
+    updateLayout();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateLayout);
+      return () => window.removeEventListener('resize', updateLayout);
+    }
+    const resizeObserver = new ResizeObserver(updateLayout);
+    resizeObserver.observe(overlay);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const referenceLayerStyle: CSSProperties = hudLayout.isPortrait
+    ? { height: '100%', width: '100%' }
+    : {
+        height: HUD_REFERENCE_HEIGHT,
+        transform: `translate(${hudLayout.offsetX}px, ${hudLayout.offsetY}px) scale(${hudLayout.scale})`,
+        transformOrigin: 'top left',
+        width: HUD_REFERENCE_WIDTH,
+      };
+  const statusPanelClass = hudLayout.isPortrait
+    ? portraitStatusPanelClass
+    : desktopStatusPanelClass;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-10">
+    <div
+      className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
+      ref={overlayRef}
+    >
+      <div
+        className="pointer-events-none absolute top-0 left-0 z-10"
+        style={referenceLayerStyle}
+      >
       <section
-        className={`${statusPanelClass} absolute top-3 left-3 lg:top-auto lg:bottom-24 lg:left-[10%]`}
+        className={`${statusPanelClass} absolute ${hudLayout.isPortrait
+          ? 'top-3 left-3'
+          : 'bottom-32 left-[10%]'}`}
       >
         <h2 className="font-bold">Opponent</h2>
         <p>Score: {opponent.score}</p>
@@ -82,7 +146,7 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute top-3 left-1/2 -translate-x-1/2 text-center lg:top-4`}
+        className={`${statusPanelClass} absolute left-1/2 -translate-x-1/2 text-center ${hudLayout.isPortrait ? 'top-3' : 'top-4'}`}
       >
         <h2 className="font-bold">Dealer</h2>
         <p>
@@ -94,7 +158,9 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute top-3 right-3 text-right lg:top-auto lg:right-[10%] lg:bottom-24`}
+        className={`${statusPanelClass} absolute text-right ${hudLayout.isPortrait
+          ? 'top-3 right-3'
+          : 'right-[10%] bottom-32'}`}
       >
         <h2 className="font-bold">Self</h2>
         <p>Score: {self.score}</p>
@@ -105,7 +171,9 @@ export function GameTableHud({
       </section>
 
       {turnTimer && !isFinished && (
-        <p className="absolute top-16 left-1/2 -translate-x-1/2 rounded-md border border-indigo-200/10 bg-indigo-950/50 px-2.5 py-1.5 text-xs font-bold whitespace-nowrap text-indigo-50/90 backdrop-blur-sm lg:top-4 lg:left-4 lg:translate-x-0">
+        <p className={`absolute rounded-md border border-indigo-200/15 bg-indigo-950/60 font-bold whitespace-nowrap text-indigo-50/95 backdrop-blur-sm ${hudLayout.isPortrait
+          ? 'top-16 left-1/2 -translate-x-1/2 px-2.5 py-1.5 text-xs'
+          : 'top-4 left-4 px-3 py-2 text-sm'}`}>
           {turnTimer.player === selfSeat ? '내' : '상대'} 턴 남은 시간:{' '}
           {turnTimerSeconds}초
         </p>
@@ -113,11 +181,15 @@ export function GameTableHud({
 
       {!isFinished && (
         <>
-          <section className="pointer-events-auto absolute right-3 bottom-[4.75rem] left-3 rounded-lg border border-white/10 bg-slate-950/55 p-2 text-white/90 backdrop-blur-sm sm:right-auto sm:bottom-4 sm:left-4 sm:w-64">
-            <h2 className="mb-1 text-xs font-bold">Chat</h2>
+          <section className={`pointer-events-auto absolute rounded-lg border border-white/15 bg-slate-950/65 text-white/90 backdrop-blur-sm ${hudLayout.isPortrait
+            ? 'right-3 bottom-20 left-3 p-2.5'
+            : 'bottom-4 left-4 w-[340px] p-3'}`}>
+            <h2 className={`mb-1.5 font-bold ${hudLayout.isPortrait ? 'text-[13px]' : 'text-sm'}`}>Chat</h2>
             <div
               aria-live="polite"
-              className="mb-1.5 max-h-10 space-y-1 overflow-y-auto text-[11px] sm:max-h-16"
+              className={`mb-2 space-y-1 overflow-y-auto ${hudLayout.isPortrait
+                ? 'max-h-12 text-xs'
+                : 'max-h-20 text-sm'}`}
             >
               {chatMessages.map((message, index) => (
                 <p className="break-words" key={`${message.sender}:${index}`}>
@@ -129,14 +201,18 @@ export function GameTableHud({
             <form className="grid grid-cols-[1fr_auto] gap-2" onSubmit={onChatSubmit}>
               <input
                 aria-label="메시지"
-                className="min-w-0 rounded-md border border-white/15 bg-slate-900/75 px-2 py-1.5 text-xs text-white outline-none focus:border-blue-400"
+                className={`min-w-0 rounded-md border border-white/15 bg-slate-900/75 py-2 text-white outline-none focus:border-blue-400 ${hudLayout.isPortrait
+                  ? 'px-2.5 text-[13px]'
+                  : 'px-3 text-sm'}`}
                 maxLength={CHAT_MESSAGE_MAX_LENGTH}
                 onChange={(event) => onChatInputChange(event.target.value)}
                 type="text"
                 value={chatInput}
               />
               <button
-                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-bold text-white"
+                className={`rounded-md bg-blue-600 py-2 font-bold text-white ${hudLayout.isPortrait
+                  ? 'px-3 text-[13px]'
+                  : 'px-4 text-sm'}`}
                 type="submit"
               >
                 전송
@@ -144,10 +220,12 @@ export function GameTableHud({
             </form>
           </section>
 
-          <div className="pointer-events-auto absolute right-3 bottom-3 left-3 sm:right-4 sm:bottom-4 sm:left-auto sm:w-52">
+          <div className={`pointer-events-auto absolute ${hudLayout.isPortrait
+            ? 'right-3 bottom-3 left-3'
+            : 'right-4 bottom-4 w-[280px]'}`}>
             {actionError && (
               <p
-                className="mb-2 rounded-lg border border-red-300/20 bg-red-950/90 px-3 py-2 text-xs text-red-100 shadow-lg"
+                className={`mb-2 rounded-lg border border-red-300/20 bg-red-950/90 px-3 py-2 text-red-100 shadow-lg ${hudLayout.isPortrait ? 'text-xs' : 'text-sm'}`}
                 role="alert"
               >
                 {actionError}
@@ -155,7 +233,9 @@ export function GameTableHud({
             )}
             <div className="grid grid-cols-2 gap-2">
               <button
-                className="rounded-lg bg-gray-100 px-3 py-2.5 text-sm font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                className={`rounded-lg bg-gray-100 px-3 py-2.5 font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${hudLayout.isPortrait
+                  ? 'min-h-11 text-sm'
+                  : 'min-h-12 text-base'}`}
                 disabled={!canAct}
                 onClick={onHit}
                 type="button"
@@ -163,7 +243,9 @@ export function GameTableHud({
                 Hit
               </button>
               <button
-                className="rounded-lg bg-gray-100 px-3 py-2.5 text-sm font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50"
+                className={`rounded-lg bg-gray-100 px-3 py-2.5 font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${hudLayout.isPortrait
+                  ? 'min-h-11 text-sm'
+                  : 'min-h-12 text-base'}`}
                 disabled={!canAct}
                 onClick={onStand}
                 type="button"
@@ -174,15 +256,22 @@ export function GameTableHud({
           </div>
         </>
       )}
+      </div>
 
       {showFinishedResult && (
         <>
           <div className="pointer-events-auto absolute inset-0 z-20 bg-black/70" />
-          <div className="pointer-events-none absolute inset-0 z-30 grid place-items-center p-4">
+          <div
+            className="pointer-events-none absolute top-0 left-0 z-30"
+            style={referenceLayerStyle}
+          >
+          <div className={`absolute inset-0 grid place-items-center ${hudLayout.isPortrait ? 'p-4' : 'p-5'}`}>
             <section
               aria-label="게임 결과"
               aria-modal="true"
-              className="pointer-events-auto max-h-[calc(100dvh-2rem)] w-full max-w-sm overflow-y-auto rounded-2xl border border-white/15 bg-slate-900 p-4 text-center text-white shadow-2xl sm:p-5"
+              className={`pointer-events-auto overflow-y-auto rounded-2xl border border-white/15 bg-slate-900 text-center text-white shadow-2xl ${hudLayout.isPortrait
+                ? 'max-h-[calc(100dvh-2rem)] w-full max-w-sm p-4'
+                : 'max-h-[1040px] w-96 p-5'}`}
               role="dialog"
             >
               <p className="text-xs font-bold tracking-[0.18em] text-slate-400">
@@ -191,7 +280,7 @@ export function GameTableHud({
               <p className="mt-2 text-3xl font-extrabold">
                 {self.result ? resultLabels[self.result] : '게임 종료'}
               </p>
-              <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className={`mt-5 grid gap-2 ${hudLayout.isPortrait ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 <button
                   className="rounded-lg bg-amber-500 px-4 py-2.5 font-bold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50"
                   disabled={rematchPending || newOpponentPending || selfAccepted}
@@ -221,6 +310,7 @@ export function GameTableHud({
                 </p>
               )}
             </section>
+          </div>
           </div>
         </>
       )}
