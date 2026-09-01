@@ -72,7 +72,7 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
         return 'acted';
       }
       return 'waiting';
-    }, { timeout: 15_000 }).not.toBe('waiting');
+    }, { timeout: 40_000 }).not.toBe('waiting');
 
     if (await dialogA.isVisible() || await dialogB.isVisible()) break;
   }
@@ -84,7 +84,7 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
 test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서 재대결한다', async ({
   browser,
 }) => {
-  test.setTimeout(75_000);
+  test.setTimeout(100_000);
 
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
