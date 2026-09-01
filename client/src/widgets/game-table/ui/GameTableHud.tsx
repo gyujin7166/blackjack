@@ -122,6 +122,56 @@ export function GameTableHud({
   const statusPanelClass = hudLayout.isPortrait
     ? portraitStatusPanelClass
     : desktopStatusPanelClass;
+  const landscapeChatStyle: CSSProperties | undefined = hudLayout.isPortrait
+    ? undefined
+    : {
+        bottom: 24 * hudLayout.scale,
+        right: 24 * hudLayout.scale,
+        top: 24 * hudLayout.scale,
+        width: 380 * hudLayout.scale,
+      };
+  const chatPanel = !isFinished && (
+    <section
+      className={`pointer-events-auto absolute rounded-lg border border-white/15 bg-slate-950/65 text-white/90 backdrop-blur-sm ${hudLayout.isPortrait
+        ? 'right-3 bottom-20 left-3 p-2.5'
+        : 'flex flex-col p-4'}`}
+      style={landscapeChatStyle}
+    >
+      <h2 className={`mb-1.5 font-bold ${hudLayout.isPortrait ? 'text-[13px]' : 'text-sm'}`}>Chat</h2>
+      <div
+        aria-live="polite"
+        className={`space-y-1 overflow-y-auto ${hudLayout.isPortrait
+          ? 'mb-2 max-h-12 text-xs'
+          : 'mb-3 min-h-0 flex-1 text-sm'}`}
+      >
+        {chatMessages.map((message, index) => (
+          <p className="break-words" key={`${message.sender}:${index}`}>
+            {message.sender === selfSeat ? 'Self' : 'Opponent'}: {message.text}
+          </p>
+        ))}
+      </div>
+      <form className="grid grid-cols-[1fr_auto] gap-2" onSubmit={onChatSubmit}>
+        <input
+          aria-label="메시지"
+          className={`min-w-0 rounded-md border border-white/15 bg-slate-900/75 py-2 text-white outline-none focus:border-blue-400 ${hudLayout.isPortrait
+            ? 'px-2.5 text-[13px]'
+            : 'px-3 text-sm'}`}
+          maxLength={CHAT_MESSAGE_MAX_LENGTH}
+          onChange={(event) => onChatInputChange(event.target.value)}
+          type="text"
+          value={chatInput}
+        />
+        <button
+          className={`rounded-md bg-blue-600 py-2 font-bold text-white ${hudLayout.isPortrait
+            ? 'px-3 text-[13px]'
+            : 'px-4 text-sm'}`}
+          type="submit"
+        >
+          전송
+        </button>
+      </form>
+    </section>
+  );
 
   return (
     <div
@@ -160,7 +210,7 @@ export function GameTableHud({
       <section
         className={`${statusPanelClass} absolute text-right ${hudLayout.isPortrait
           ? 'top-3 right-3'
-          : 'right-[10%] bottom-32'}`}
+          : 'right-[428px] bottom-32'}`}
       >
         <h2 className="font-bold">Self</h2>
         <p>Score: {self.score}</p>
@@ -181,48 +231,11 @@ export function GameTableHud({
 
       {!isFinished && (
         <>
-          <section className={`pointer-events-auto absolute rounded-lg border border-white/15 bg-slate-950/65 text-white/90 backdrop-blur-sm ${hudLayout.isPortrait
-            ? 'right-3 bottom-20 left-3 p-2.5'
-            : 'bottom-4 left-4 w-[340px] p-3'}`}>
-            <h2 className={`mb-1.5 font-bold ${hudLayout.isPortrait ? 'text-[13px]' : 'text-sm'}`}>Chat</h2>
-            <div
-              aria-live="polite"
-              className={`mb-2 space-y-1 overflow-y-auto ${hudLayout.isPortrait
-                ? 'max-h-12 text-xs'
-                : 'max-h-20 text-sm'}`}
-            >
-              {chatMessages.map((message, index) => (
-                <p className="break-words" key={`${message.sender}:${index}`}>
-                  {message.sender === selfSeat ? 'Self' : 'Opponent'}:{' '}
-                  {message.text}
-                </p>
-              ))}
-            </div>
-            <form className="grid grid-cols-[1fr_auto] gap-2" onSubmit={onChatSubmit}>
-              <input
-                aria-label="메시지"
-                className={`min-w-0 rounded-md border border-white/15 bg-slate-900/75 py-2 text-white outline-none focus:border-blue-400 ${hudLayout.isPortrait
-                  ? 'px-2.5 text-[13px]'
-                  : 'px-3 text-sm'}`}
-                maxLength={CHAT_MESSAGE_MAX_LENGTH}
-                onChange={(event) => onChatInputChange(event.target.value)}
-                type="text"
-                value={chatInput}
-              />
-              <button
-                className={`rounded-md bg-blue-600 py-2 font-bold text-white ${hudLayout.isPortrait
-                  ? 'px-3 text-[13px]'
-                  : 'px-4 text-sm'}`}
-                type="submit"
-              >
-                전송
-              </button>
-            </form>
-          </section>
+          {hudLayout.isPortrait && chatPanel}
 
           <div className={`pointer-events-auto absolute ${hudLayout.isPortrait
             ? 'right-3 bottom-3 left-3'
-            : 'right-4 bottom-4 w-[280px]'}`}>
+            : 'right-[428px] bottom-6 w-[280px]'}`}>
             {actionError && (
               <p
                 className={`mb-2 rounded-lg border border-red-300/20 bg-red-950/90 px-3 py-2 text-red-100 shadow-lg ${hudLayout.isPortrait ? 'text-xs' : 'text-sm'}`}
@@ -257,6 +270,8 @@ export function GameTableHud({
         </>
       )}
       </div>
+
+      {!hudLayout.isPortrait && chatPanel}
 
       {showFinishedResult && (
         <>
