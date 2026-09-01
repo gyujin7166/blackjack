@@ -31,9 +31,16 @@ interface GameTableSceneProps
 
 type Vector3Tuple = [number, number, number];
 
-const DEAL_ORIGIN: Vector3Tuple = [5.75, 0.64, -2.14];
-const MOBILE_DEAL_ORIGIN: Vector3Tuple = [2.1, 0.64, -2.14];
+const DEAL_ORIGIN: Vector3Tuple = [4.5, 0.64, -2.14];
+const MOBILE_DEAL_ORIGIN: Vector3Tuple = [1.55, 0.64, -1.25];
 const DEAL_STAGGER_SECONDS = 0.12;
+const DECK_CARD_OFFSETS: Vector3Tuple[] = [
+  [-0.056, -0.104, -0.056],
+  [-0.042, -0.078, -0.042],
+  [-0.028, -0.052, -0.028],
+  [-0.014, -0.026, -0.014],
+  [0, 0, 0],
+];
 
 function createTableShape(
   halfWidth: number,
@@ -238,53 +245,13 @@ function VisualDeck() {
   const isPortrait = useThree(
     (state) => state.size.width / state.size.height < 0.8,
   );
-  const position: Vector3Tuple = isPortrait
-    ? [2.25, 0.43, -2.72]
-    : [5.9, 0.4, -2.72];
+  const position = isPortrait ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
 
   return (
-    <group position={position} rotation={[0, -0.25, 0]}>
-      <mesh position={[0, 0.01, 0]}>
-        <boxGeometry args={[1.9, 0.12, 1.16]} />
-        <meshStandardMaterial color="#101d2d" roughness={0.58} />
-      </mesh>
-      <mesh position={[0, 0.1, 0.01]}>
-        <boxGeometry args={[1.58, 0.08, 0.98]} />
-        <meshStandardMaterial color="#263b55" roughness={0.56} />
-      </mesh>
-      <mesh position={[-0.87, 0.16, -0.02]}>
-        <boxGeometry args={[0.14, 0.26, 1.08]} />
-        <meshStandardMaterial color="#172a40" roughness={0.52} />
-      </mesh>
-      <mesh position={[0.87, 0.16, -0.02]}>
-        <boxGeometry args={[0.14, 0.26, 1.08]} />
-        <meshStandardMaterial color="#172a40" roughness={0.52} />
-      </mesh>
-      <mesh position={[0, 0.25, -0.43]} rotation={[0.14, 0, 0]}>
-        <boxGeometry args={[1.82, 0.13, 0.42]} />
-        <meshStandardMaterial color="#223a55" roughness={0.5} />
-      </mesh>
-      <group position={[0, 0.18, 0.01]} scale={[0.7, 0.7, 0.7]}>
-        {[0, 0.045, 0.09].map((height, index) => (
-          <Card3D
-            hidden
-            key={height}
-            position={[index * 0.015, height, index * 0.018]}
-          />
-        ))}
-      </group>
-      <mesh position={[0, 0.16, 0.52]}>
-        <boxGeometry args={[1.3, 0.16, 0.13]} />
-        <meshStandardMaterial color="#223a55" roughness={0.5} />
-      </mesh>
-      <mesh position={[-0.68, 0.15, 0.42]}>
-        <boxGeometry args={[0.18, 0.2, 0.24]} />
-        <meshStandardMaterial color="#172a40" roughness={0.52} />
-      </mesh>
-      <mesh position={[0.68, 0.15, 0.42]}>
-        <boxGeometry args={[0.18, 0.2, 0.24]} />
-        <meshStandardMaterial color="#172a40" roughness={0.52} />
-      </mesh>
+    <group position={position}>
+      {DECK_CARD_OFFSETS.map((offset, index) => (
+        <Card3D hidden key={index} position={offset} />
+      ))}
     </group>
   );
 }
