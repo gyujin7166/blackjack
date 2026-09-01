@@ -7,7 +7,13 @@ import type {
 } from '@blackjack/shared';
 import { Canvas, useThree } from '@react-three/fiber';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CanvasTexture, LinearFilter, Shape, SRGBColorSpace } from 'three';
+import {
+  ACESFilmicToneMapping,
+  CanvasTexture,
+  LinearFilter,
+  Shape,
+  SRGBColorSpace,
+} from 'three';
 import type { PerspectiveCamera } from 'three';
 
 import { Card3D } from '../../../entities/card/ui/Card3D';
@@ -81,6 +87,53 @@ const FELT_EXTRUDE_OPTIONS = {
   curveSegments: 48,
   depth: 0.06,
 };
+
+function createFeltTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 768;
+  canvas.height = 384;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Canvas 2D context is unavailable.');
+
+  const gradient = context.createRadialGradient(
+    canvas.width * 0.5,
+    canvas.height * 0.48,
+    canvas.width * 0.04,
+    canvas.width * 0.5,
+    canvas.height * 0.48,
+    canvas.width * 0.56,
+  );
+  gradient.addColorStop(0, '#1687a4');
+  gradient.addColorStop(0.48, '#0b7391');
+  gradient.addColorStop(0.78, '#075a73');
+  gradient.addColorStop(1, '#043f52');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  let seed = 0x2f6e2b1;
+  const random = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0x100000000;
+  };
+
+  for (let index = 0; index < 6500; index += 1) {
+    const brightness = random() > 0.54 ? 255 : 0;
+    context.fillStyle = `rgba(${brightness}, ${brightness}, ${brightness}, ${0.012 + random() * 0.022})`;
+    context.fillRect(
+      Math.floor(random() * canvas.width),
+      Math.floor(random() * canvas.height),
+      1 + Math.floor(random() * 1.4),
+      1,
+    );
+  }
+
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  texture.minFilter = LinearFilter;
+  texture.repeat.set(1 / 18.1, 1 / 7.55);
+  texture.offset.set(0.5, 0.5);
+  return texture;
+}
 
 type DealerSequenceStage =
   | 'playing'
@@ -294,31 +347,54 @@ function TableMarking() {
 }
 
 function Table() {
+  const feltTexture = useMemo(() => createFeltTexture(), []);
+
+  useEffect(() => () => feltTexture.dispose(), [feltTexture]);
+
   return (
     <group>
-      <mesh position={[0, 0.02, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        castShadow
+        position={[0, 0.02, 0]}
+        receiveShadow
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <extrudeGeometry args={[FRAME_SHAPE, FRAME_EXTRUDE_OPTIONS]} />
-        <meshStandardMaterial color="#142536" metalness={0.06} roughness={0.56} />
+        <meshStandardMaterial
+          color="#0e1d2a"
+          metalness={0.08}
+          roughness={0.5}
+        />
       </mesh>
-      <mesh position={[0, 0.3, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        position={[0, 0.3, 0]}
+        receiveShadow
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <extrudeGeometry args={[FELT_SHAPE, FELT_EXTRUDE_OPTIONS]} />
-        <meshStandardMaterial color="#066b8d" roughness={0.9} />
+        <meshStandardMaterial
+          map={feltTexture}
+          metalness={0}
+          roughness={0.92}
+        />
       </mesh>
       <mesh
         position={[0, 0.49, -1.75]}
+        receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[1.15, 0.42, 1]}
       >
         <ringGeometry args={[5.12, 5.17, 128, 1, Math.PI + 0.12, Math.PI - 0.24]} />
-        <meshBasicMaterial color="#d9d0ad" />
+        <meshStandardMaterial color="#d9d0ad" metalness={0.04} roughness={0.66} />
       </mesh>
       <mesh
         position={[0, 0.485, -1.55]}
+        receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[1.15, 0.52, 1]}
       >
         <ringGeometry args={[5.92, 5.96, 128, 1, Math.PI + 0.12, Math.PI - 0.24]} />
-        <meshBasicMaterial color="#c2ad6f" />
+        <meshStandardMaterial color="#c2ad6f" metalness={0.06} roughness={0.62} />
       </mesh>
       <TableMarking />
     </group>
@@ -416,11 +492,42 @@ function GameTableRound({
         dpr={[1, 1.5]}
         frameloop="demand"
         gl={{ alpha: false, antialias: true }}
+        onCreated={({ gl }) => {
+          gl.toneMapping = ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.05;
+        }}
+        shadows="soft"
       >
         <color attach="background" args={['#04171e']} />
-        <ambientLight intensity={1.15} />
-        <directionalLight color="#e6f4f5" intensity={2.35} position={[-4, 9, 5]} />
-        <pointLight color="#7dd8e6" intensity={17} position={[4, 5, -3]} />
+        <ambientLight color="#d8edf0" intensity={0.34} />
+        <directionalLight
+          color="#9bcbd2"
+          intensity={0.42}
+          position={[-6, 7, 5]}
+        />
+        <spotLight
+          angle={0.58}
+          castShadow
+          color="#fff0d2"
+          decay={1.8}
+          distance={30}
+          intensity={125}
+          penumbra={0.72}
+          position={[0, 11, -0.8]}
+          shadow-bias={-0.00012}
+          shadow-camera-far={24}
+          shadow-camera-near={1}
+          shadow-mapSize-height={1024}
+          shadow-mapSize-width={1024}
+          shadow-normalBias={0.025}
+        />
+        <pointLight
+          color="#61b7c8"
+          decay={2}
+          distance={12}
+          intensity={5}
+          position={[5, 4, -3]}
+        />
         <FixedCamera />
         <Table />
         <PlayerHand
