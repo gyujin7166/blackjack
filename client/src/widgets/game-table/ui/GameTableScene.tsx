@@ -37,7 +37,7 @@ interface GameTableSceneProps
 
 type Vector3Tuple = [number, number, number];
 
-const DEAL_ORIGIN: Vector3Tuple = [4.5, 0.64, -2.14];
+const DEAL_ORIGIN: Vector3Tuple = [-4.2, 0.64, -2.14];
 const MOBILE_DEAL_ORIGIN: Vector3Tuple = [1.55, 0.64, -1.25];
 const DEAL_STAGGER_SECONDS = 0.12;
 const DECK_CARD_OFFSETS: Vector3Tuple[] = [
@@ -407,8 +407,8 @@ function GameTableRound({
   animationRound,
   ...hudProps
 }: GameTableSceneProps) {
-  const player1X = selfSeat === 'player1' ? 4.45 : -4.45;
-  const player2X = selfSeat === 'player2' ? 4.45 : -4.45;
+  const player1X = selfSeat === 'player1' ? 3.15 : -3.15;
+  const player2X = selfSeat === 'player2' ? 3.15 : -3.15;
   const initialPlan = createDealerPresentationPlan({
     dealerHand: gameState.dealer.hand,
     phase: gameState.phase,
