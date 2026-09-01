@@ -201,19 +201,38 @@ export function Card3D({
 
   return (
     <group position={position} rotation={rotation}>
-      <mesh position={[0, -0.035, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        castShadow
+        position={[0, -0.035, 0]}
+        receiveShadow
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <extrudeGeometry args={[CARD_SHAPE, CARD_EXTRUDE_OPTIONS]} />
-        <meshStandardMaterial color="#faf7ee" roughness={0.62} />
+        <meshPhysicalMaterial
+          clearcoat={0.12}
+          clearcoatRoughness={0.62}
+          color="#f8f3e9"
+          metalness={0}
+          roughness={0.54}
+        />
       </mesh>
 
-      <mesh position={[0, 0.036, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh
+        castShadow
+        position={[0, 0.036, 0]}
+        receiveShadow
+        rotation={[-Math.PI / 2, 0, 0]}
+      >
         <planeGeometry args={[CARD_SURFACE_WIDTH, CARD_SURFACE_HEIGHT]} />
-        <meshStandardMaterial
+        <meshPhysicalMaterial
+          clearcoat={0.16}
+          clearcoatRoughness={0.52}
           key={texture?.uuid ?? "pending"}
           map={texture}
+          metalness={0}
           polygonOffset
           polygonOffsetFactor={-1}
-          roughness={0.66}
+          roughness={0.5}
         />
       </mesh>
     </group>
