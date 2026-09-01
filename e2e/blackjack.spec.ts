@@ -27,16 +27,25 @@ async function ensureChatIsAvailable(pageA: Page, pageB: Page) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const inputA = pageA.getByLabel('메시지');
     const inputB = pageB.getByLabel('메시지');
+    const dialogA = pageA.getByRole('dialog', { name: RESULT_DIALOG_NAME });
+    const dialogB = pageB.getByRole('dialog', { name: RESULT_DIALOG_NAME });
+    const ready = { state: 'waiting' as 'chat' | 'finished' | 'waiting' };
 
-    if (await inputA.isVisible() && await inputB.isVisible()) return;
+    await expect.poll(async () => {
+      if (await inputA.isVisible() && await inputB.isVisible()) {
+        ready.state = 'chat';
+        return ready.state;
+      }
+      if (await dialogA.isVisible() && await dialogB.isVisible()) {
+        ready.state = 'finished';
+        return ready.state;
+      }
+      ready.state = 'waiting';
+      return ready.state;
+    }, { timeout: 20_000 }).not.toBe('waiting');
 
-    await expect(
-      pageA.getByRole('dialog', { name: RESULT_DIALOG_NAME }),
-    ).toBeVisible();
-    await expect(
-      pageB.getByRole('dialog', { name: RESULT_DIALOG_NAME }),
-    ).toBeVisible();
-    await acceptRematch(pageA, pageB);
+    if (ready.state === 'chat') return;
+    if (ready.state === 'finished') await acceptRematch(pageA, pageB);
   }
 
   await expect(pageA.getByLabel('메시지')).toBeVisible();
