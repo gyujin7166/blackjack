@@ -103,7 +103,10 @@ export class GameSession {
   private advanceFrom(playerId: PlayerId): void {
     const [, secondPlayer] = this.turnOrder();
 
-    if (playerId === this.firstPlayer && this[secondPlayer].status !== 'blackjack') {
+    if (
+      playerId === this.firstPlayer &&
+      this[secondPlayer].status !== 'blackjack'
+    ) {
       this[secondPlayer].status = 'playing';
       this.phase = secondPlayer;
       return;
@@ -132,7 +135,10 @@ export class GameSession {
     }
 
     for (const playerId of playerOrder) {
-      this[playerId].result = determineResult(this[playerId].hand, this.dealer.hand);
+      this[playerId].result = determineResult(
+        this[playerId].hand,
+        this.dealer.hand,
+      );
     }
     this.phase = 'finished';
   }
@@ -153,6 +159,8 @@ export class GameSession {
   }
 }
 
-export function createGameSession(options: GameSessionOptions = {}): GameSession {
+export function createGameSession(
+  options: GameSessionOptions = {},
+): GameSession {
   return new GameSession(options);
 }

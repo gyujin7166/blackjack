@@ -31,9 +31,12 @@ describe('playGameSound', () => {
       '/sound/placing-playing-card.mp3',
       '/sound/taking-playing-card.mp3',
     ]);
-    expect(AudioMock.instances.every(({ volume }) => volume === 0.5)).toBe(true);
-    expect(AudioMock.instances.every(({ play }) => play.mock.calls.length === 1))
-      .toBe(true);
+    expect(AudioMock.instances.every(({ volume }) => volume === 0.5)).toBe(
+      true,
+    );
+    expect(
+      AudioMock.instances.every(({ play }) => play.mock.calls.length === 1),
+    ).toBe(true);
   });
 
   it('creates a separate audio instance for overlapping card deals', () => {
@@ -48,7 +51,9 @@ describe('playGameSound', () => {
 
   it('does not throw when playback is rejected', async () => {
     class RejectedAudioMock extends AudioMock {
-      override readonly play = vi.fn(() => Promise.reject(new Error('blocked')));
+      override readonly play = vi.fn(() =>
+        Promise.reject(new Error('blocked')),
+      );
     }
     vi.stubGlobal('Audio', RejectedAudioMock);
 

@@ -82,7 +82,10 @@ export function registerSocketHandlers(
         }
 
         session.stand();
-        io.to(roomId).emit('game:state', createPublicGameState(roomId, session));
+        io.to(roomId).emit(
+          'game:state',
+          createPublicGameState(roomId, session),
+        );
         startTurnTimer(roomId, session);
       }, turnTimeoutMs),
       player,
@@ -100,7 +103,10 @@ export function registerSocketHandlers(
   io.on('connection', (socket) => {
     logger.log(`connected: ${socket.id}`);
 
-    const rejectAction = (action: GameAction, reason: GameActionRejectionReason) => {
+    const rejectAction = (
+      action: GameAction,
+      reason: GameActionRejectionReason,
+    ) => {
       socket.emit('game:action-rejected', { action, reason });
     };
 
@@ -244,7 +250,8 @@ export function registerSocketHandlers(
       const session = gameSessions.get(match.roomId);
       if (!session || session.phase !== 'finished') return;
 
-      const acceptances = rematchAcceptances.get(match.roomId) ?? new Set<PlayerSeat>();
+      const acceptances =
+        rematchAcceptances.get(match.roomId) ?? new Set<PlayerSeat>();
       acceptances.add(match.seat);
       rematchAcceptances.set(match.roomId, acceptances);
       io.to(match.roomId).emit('rematch:state', {

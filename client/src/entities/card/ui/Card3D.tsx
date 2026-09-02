@@ -1,18 +1,15 @@
-import type { Card } from "@blackjack/shared";
-import { useThree } from "@react-three/fiber";
-import { useEffect, useState } from "react";
+import type { Card } from '@blackjack/shared';
+import { useThree } from '@react-three/fiber';
+import { useEffect, useState } from 'react';
 import {
   ExtrudeGeometry,
   MeshPhysicalMaterial,
   PlaneGeometry,
   Shape,
-} from "three";
+} from 'three';
 
-import { CARD_BACK_ASSET_URL, getCardFaceAssetUrl } from "../lib/cardAsset";
-import {
-  ensureCardTexture,
-  getCachedCardTexture,
-} from "../lib/cardTexture";
+import { CARD_BACK_ASSET_URL, getCardFaceAssetUrl } from '../lib/cardAsset';
+import { ensureCardTexture, getCachedCardTexture } from '../lib/cardTexture';
 
 type Vector3Tuple = [number, number, number];
 
@@ -75,7 +72,7 @@ const CARD_SURFACE_GEOMETRY = new PlaneGeometry(
 const CARD_BODY_MATERIAL = new MeshPhysicalMaterial({
   clearcoat: 0.12,
   clearcoatRoughness: 0.62,
-  color: "#f8f3e9",
+  color: '#f8f3e9',
   metalness: 0,
   roughness: 0.54,
 });
@@ -175,7 +172,7 @@ export function Card3D({
         <meshPhysicalMaterial
           clearcoat={0.16}
           clearcoatRoughness={0.52}
-          key={texture?.uuid ?? "pending"}
+          key={texture?.uuid ?? 'pending'}
           map={texture}
           metalness={0}
           polygonOffset

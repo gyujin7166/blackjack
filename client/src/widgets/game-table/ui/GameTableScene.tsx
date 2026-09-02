@@ -29,11 +29,10 @@ import { DealerRevealCard3D } from './DealerRevealCard3D';
 import { DealtCard3D } from './DealtCard3D';
 import { GameTableHud, type GameTableHudProps } from './GameTableHud';
 
-interface GameTableSceneProps
-  extends Omit<
-    GameTableHudProps,
-    'dealerSequenceComplete' | 'gameState' | 'selfSeat'
-  > {
+interface GameTableSceneProps extends Omit<
+  GameTableHudProps,
+  'dealerSequenceComplete' | 'gameState' | 'selfSeat'
+> {
   gameState: GameStatePayload;
   selfSeat: PlayerSeat;
   animationRound: number;
@@ -140,11 +139,7 @@ function createFeltTexture() {
 }
 
 type DealerSequenceStage =
-  | 'playing'
-  | 'waiting-initial-deal'
-  | 'revealing'
-  | 'drawing'
-  | 'complete';
+  'playing' | 'waiting-initial-deal' | 'revealing' | 'drawing' | 'complete';
 
 function FixedCamera() {
   const camera = useThree((state) => state.camera);
@@ -153,9 +148,7 @@ function FixedCamera() {
 
   useEffect(() => {
     const isPortrait = viewportWidth / viewportHeight < 0.8;
-    const position: Vector3Tuple = isPortrait
-      ? [0, 18.5, 4]
-      : [0, 20.5, 2];
+    const position: Vector3Tuple = isPortrait ? [0, 18.5, 4] : [0, 20.5, 2];
     camera.position.set(...position);
     (camera as PerspectiveCamera).fov = isPortrait ? 32 : 24;
     camera.lookAt(0, 0, isPortrait ? 0.2 : 0.55);
@@ -192,16 +185,13 @@ function PlayerHand({
     <>
       {cards.map((card, index) => {
         const centerOffset = index - (cards.length - 1) / 2;
-        const rotationY = Math.max(
-          -0.2,
-          Math.min(0.2, -centerOffset * 0.18),
-        );
+        const rotationY = Math.max(-0.2, Math.min(0.2, -centerOffset * 0.18));
         return (
           <DealtCard3D
             card={card}
-            delay={index < 2
-              ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS
-              : 0}
+            delay={
+              index < 2 ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS : 0
+            }
             initialDealSound={index < 2 ? 'initialDeal' : 'draw'}
             key={`${animationRound}:${owner}:${index}`}
             readinessUrls={index < 2 ? initialDealReadinessUrls : undefined}
@@ -395,8 +385,14 @@ function Table() {
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[1.15, 0.42, 1]}
       >
-        <ringGeometry args={[5.12, 5.17, 128, 1, Math.PI + 0.12, Math.PI - 0.24]} />
-        <meshStandardMaterial color="#d9d0ad" metalness={0.04} roughness={0.66} />
+        <ringGeometry
+          args={[5.12, 5.17, 128, 1, Math.PI + 0.12, Math.PI - 0.24]}
+        />
+        <meshStandardMaterial
+          color="#d9d0ad"
+          metalness={0.04}
+          roughness={0.66}
+        />
       </mesh>
       <mesh
         position={[0, 0.485, -1.55]}
@@ -404,8 +400,14 @@ function Table() {
         rotation={[-Math.PI / 2, 0, 0]}
         scale={[1.15, 0.52, 1]}
       >
-        <ringGeometry args={[5.92, 5.96, 128, 1, Math.PI + 0.12, Math.PI - 0.24]} />
-        <meshStandardMaterial color="#c2ad6f" metalness={0.06} roughness={0.62} />
+        <ringGeometry
+          args={[5.92, 5.96, 128, 1, Math.PI + 0.12, Math.PI - 0.24]}
+        />
+        <meshStandardMaterial
+          color="#c2ad6f"
+          metalness={0.06}
+          roughness={0.62}
+        />
       </mesh>
       <TableMarking />
     </group>
@@ -436,21 +438,16 @@ function GameTableRound({
     }
 
     return [...urls];
-  }, [
-    gameState.dealer.hand,
-    gameState.player1.hand,
-    gameState.player2.hand,
-  ]);
+  }, [gameState.dealer.hand, gameState.player1.hand, gameState.player2.hand]);
   const initialPlan = createDealerPresentationPlan({
     dealerHand: gameState.dealer.hand,
     phase: gameState.phase,
     previousPhase: null,
   });
-  const [dealerPlan, setDealerPlan] = useState<DealerPresentationPlan>(initialPlan);
+  const [dealerPlan, setDealerPlan] =
+    useState<DealerPresentationPlan>(initialPlan);
   const [dealerStage, setDealerStage] = useState<DealerSequenceStage>(
-    initialPlan.shouldRevealHoleCard
-      ? 'waiting-initial-deal'
-      : 'playing',
+    initialPlan.shouldRevealHoleCard ? 'waiting-initial-deal' : 'playing',
   );
   const [visibleDrawCount, setVisibleDrawCount] = useState(0);
   const previousPhaseRef = useRef<GamePhase>(gameState.phase);
@@ -509,9 +506,10 @@ function GameTableRound({
 
   const visibleDrawIndices = dealerPlan.drawIndices.slice(0, visibleDrawCount);
   const dealerSequenceComplete = dealerStage === 'complete';
-  const revealHoleCard = dealerStage === 'revealing'
-    || dealerStage === 'drawing'
-    || dealerStage === 'complete';
+  const revealHoleCard =
+    dealerStage === 'revealing' ||
+    dealerStage === 'drawing' ||
+    dealerStage === 'complete';
 
   return (
     <section

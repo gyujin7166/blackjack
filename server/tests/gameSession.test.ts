@@ -16,7 +16,9 @@ function cards(...ranks: Rank[]): Card[] {
 
 describe('game session initialization', () => {
   it('deals two cards each in player1, player2, dealer order', () => {
-    const session = createGameSession({ deck: cards('2', '3', '4', '5', '6', '7') });
+    const session = createGameSession({
+      deck: cards('2', '3', '4', '5', '6', '7'),
+    });
 
     expect(session.player1.hand.map((card) => card.rank)).toEqual(['2', '5']);
     expect(session.player2.hand.map((card) => card.rank)).toEqual(['3', '6']);
@@ -27,28 +29,47 @@ describe('game session initialization', () => {
 
 describe('player turns', () => {
   it('adds a card on hit and keeps the turn below 21', () => {
-    const session = createGameSession({ deck: cards('2', '3', '10', '5', '6', '7', '8') });
+    const session = createGameSession({
+      deck: cards('2', '3', '10', '5', '6', '7', '8'),
+    });
 
     session.hit();
 
-    expect(session.player1.hand.map((card) => card.rank)).toEqual(['2', '5', '8']);
+    expect(session.player1.hand.map((card) => card.rank)).toEqual([
+      '2',
+      '5',
+      '8',
+    ]);
     expect(session.phase).toBe('player1');
   });
 
   it.each([
-    { name: 'bust', deck: cards('10', '2', '10', 'K', '3', '7', '2'), status: 'bust' },
-    { name: '21', deck: cards('10', '2', '10', '5', '3', '7', '6'), status: 'twenty-one' },
-  ] as const)('moves to player2 after player1 hits to $name', ({ deck, status }) => {
-    const session = createGameSession({ deck });
+    {
+      name: 'bust',
+      deck: cards('10', '2', '10', 'K', '3', '7', '2'),
+      status: 'bust',
+    },
+    {
+      name: '21',
+      deck: cards('10', '2', '10', '5', '3', '7', '6'),
+      status: 'twenty-one',
+    },
+  ] as const)(
+    'moves to player2 after player1 hits to $name',
+    ({ deck, status }) => {
+      const session = createGameSession({ deck });
 
-    session.hit();
+      session.hit();
 
-    expect(session.player1.status).toBe(status);
-    expect(session.phase).toBe('player2');
-  });
+      expect(session.player1.status).toBe(status);
+      expect(session.phase).toBe('player2');
+    },
+  );
 
   it('moves to player2 when player1 stands', () => {
-    const session = createGameSession({ deck: cards('10', '2', '10', '6', '3', '7') });
+    const session = createGameSession({
+      deck: cards('10', '2', '10', '6', '3', '7'),
+    });
 
     session.stand();
 
@@ -57,24 +78,34 @@ describe('player turns', () => {
   });
 
   it('skips player1 when their initial hand is a natural blackjack', () => {
-    const session = createGameSession({ deck: cards('A', '2', '10', 'K', '3', '7') });
+    const session = createGameSession({
+      deck: cards('A', '2', '10', 'K', '3', '7'),
+    });
 
     expect(session.player1.status).toBe('blackjack');
     expect(session.phase).toBe('player2');
   });
 
   it('supports player2 hit and keeps their turn below 21', () => {
-    const session = createGameSession({ deck: cards('10', '4', '10', '6', '5', '7', '6') });
+    const session = createGameSession({
+      deck: cards('10', '4', '10', '6', '5', '7', '6'),
+    });
     session.stand();
 
     session.hit();
 
-    expect(session.player2.hand.map((card) => card.rank)).toEqual(['4', '5', '6']);
+    expect(session.player2.hand.map((card) => card.rank)).toEqual([
+      '4',
+      '5',
+      '6',
+    ]);
     expect(session.phase).toBe('player2');
   });
 
   it('finishes after player2 busts', () => {
-    const session = createGameSession({ deck: cards('10', '10', '10', '6', 'K', '7', '2') });
+    const session = createGameSession({
+      deck: cards('10', '10', '10', '6', 'K', '7', '2'),
+    });
     session.stand();
 
     session.hit();
@@ -84,7 +115,9 @@ describe('player turns', () => {
   });
 
   it('runs the dealer and finishes when player2 stands', () => {
-    const session = createGameSession({ deck: cards('10', '9', '10', '6', '8', '7') });
+    const session = createGameSession({
+      deck: cards('10', '9', '10', '6', '8', '7'),
+    });
     session.stand();
 
     session.stand();
@@ -94,7 +127,9 @@ describe('player turns', () => {
   });
 
   it('automatically skips a player2 natural blackjack', () => {
-    const session = createGameSession({ deck: cards('10', 'A', '10', '6', 'K', '7') });
+    const session = createGameSession({
+      deck: cards('10', 'A', '10', '6', 'K', '7'),
+    });
 
     session.stand();
 
@@ -105,11 +140,17 @@ describe('player turns', () => {
 
 describe('dealer turn', () => {
   it('hits on 16 and stops at 17 or higher', () => {
-    const session = createGameSession({ deck: cards('10', '9', '10', '6', '8', '6', '5') });
+    const session = createGameSession({
+      deck: cards('10', '9', '10', '6', '8', '6', '5'),
+    });
     session.stand();
     session.stand();
 
-    expect(session.dealer.hand.map((card) => card.rank)).toEqual(['10', '6', '5']);
+    expect(session.dealer.hand.map((card) => card.rank)).toEqual([
+      '10',
+      '6',
+      '5',
+    ]);
   });
 
   it.each([
@@ -125,11 +166,17 @@ describe('dealer turn', () => {
   });
 
   it('handles dealer bust', () => {
-    const session = createGameSession({ deck: cards('10', '9', '10', '6', '8', '6', 'K') });
+    const session = createGameSession({
+      deck: cards('10', '9', '10', '6', '8', '6', 'K'),
+    });
     session.stand();
     session.stand();
 
-    expect(session.dealer.hand.map((card) => card.rank)).toEqual(['10', '6', 'K']);
+    expect(session.dealer.hand.map((card) => card.rank)).toEqual([
+      '10',
+      '6',
+      'K',
+    ]);
     expect(session.player1.result).toBe('win');
     expect(session.player2.result).toBe('win');
   });
@@ -148,20 +195,62 @@ describe('dealer turn', () => {
 
 describe('results', () => {
   it.each([
-    { name: 'player bust', player: cards('10', 'K', '2'), dealer: cards('10', '7'), result: 'lose' },
-    { name: 'dealer bust', player: cards('10', '7'), dealer: cards('10', 'K', '2'), result: 'win' },
-    { name: 'higher player score', player: cards('10', '9'), dealer: cards('10', '8'), result: 'win' },
-    { name: 'lower player score', player: cards('10', '7'), dealer: cards('10', '8'), result: 'lose' },
-    { name: 'equal score', player: cards('10', '8'), dealer: cards('K', '8'), result: 'push' },
-    { name: 'player natural over dealer 21', player: cards('A', 'K'), dealer: cards('7', '7', '7'), result: 'win' },
-    { name: 'dealer natural over player 21', player: cards('7', '7', '7'), dealer: cards('A', 'K'), result: 'lose' },
-    { name: 'both natural', player: cards('A', 'K'), dealer: cards('A', 'Q'), result: 'push' },
+    {
+      name: 'player bust',
+      player: cards('10', 'K', '2'),
+      dealer: cards('10', '7'),
+      result: 'lose',
+    },
+    {
+      name: 'dealer bust',
+      player: cards('10', '7'),
+      dealer: cards('10', 'K', '2'),
+      result: 'win',
+    },
+    {
+      name: 'higher player score',
+      player: cards('10', '9'),
+      dealer: cards('10', '8'),
+      result: 'win',
+    },
+    {
+      name: 'lower player score',
+      player: cards('10', '7'),
+      dealer: cards('10', '8'),
+      result: 'lose',
+    },
+    {
+      name: 'equal score',
+      player: cards('10', '8'),
+      dealer: cards('K', '8'),
+      result: 'push',
+    },
+    {
+      name: 'player natural over dealer 21',
+      player: cards('A', 'K'),
+      dealer: cards('7', '7', '7'),
+      result: 'win',
+    },
+    {
+      name: 'dealer natural over player 21',
+      player: cards('7', '7', '7'),
+      dealer: cards('A', 'K'),
+      result: 'lose',
+    },
+    {
+      name: 'both natural',
+      player: cards('A', 'K'),
+      dealer: cards('A', 'Q'),
+      result: 'push',
+    },
   ] as const)('$name returns $result', ({ player, dealer, result }) => {
     expect(determineResult(player, dealer)).toBe(result);
   });
 
   it('finishes immediately when the dealer has a natural blackjack', () => {
-    const session = createGameSession({ deck: cards('10', 'A', 'A', '9', 'K', 'K') });
+    const session = createGameSession({
+      deck: cards('10', 'A', 'A', '9', 'K', 'K'),
+    });
 
     expect(session.phase).toBe('finished');
     expect(session.player1.result).toBe('lose');
@@ -171,18 +260,24 @@ describe('results', () => {
 
 describe('finished session', () => {
   it('rejects hit and stand after finishing', () => {
-    const session = createGameSession({ deck: cards('10', '9', '10', '7', '8', '7') });
+    const session = createGameSession({
+      deck: cards('10', '9', '10', '7', '8', '7'),
+    });
     session.stand();
     session.stand();
 
     expect(() => session.hit()).toThrow('Cannot hit during the finished phase');
-    expect(() => session.stand()).toThrow('Cannot stand during the finished phase');
+    expect(() => session.stand()).toThrow(
+      'Cannot stand during the finished phase',
+    );
   });
 });
 
 describe('configurable first player', () => {
   it('defaults to player1', () => {
-    const session = createGameSession({ deck: cards('10', '9', '10', '6', '8', '7') });
+    const session = createGameSession({
+      deck: cards('10', '9', '10', '6', '8', '7'),
+    });
 
     expect(session.firstPlayer).toBe('player1');
     expect(session.phase).toBe('player1');
@@ -213,16 +308,27 @@ describe('configurable first player', () => {
   });
 
   it.each([
-    { name: 'bust', deck: cards('2', '10', '10', '5', 'K', '7', '2'), status: 'bust' },
-    { name: '21', deck: cards('2', '10', '10', '5', '5', '7', '6'), status: 'twenty-one' },
-  ] as const)('moves to player1 after player2 hits to $name', ({ deck, status }) => {
-    const session = createGameSession({ deck, firstPlayer: 'player2' });
+    {
+      name: 'bust',
+      deck: cards('2', '10', '10', '5', 'K', '7', '2'),
+      status: 'bust',
+    },
+    {
+      name: '21',
+      deck: cards('2', '10', '10', '5', '5', '7', '6'),
+      status: 'twenty-one',
+    },
+  ] as const)(
+    'moves to player1 after player2 hits to $name',
+    ({ deck, status }) => {
+      const session = createGameSession({ deck, firstPlayer: 'player2' });
 
-    session.hit();
+      session.hit();
 
-    expect(session.player2.status).toBe(status);
-    expect(session.phase).toBe('player1');
-  });
+      expect(session.player2.status).toBe(status);
+      expect(session.phase).toBe('player1');
+    },
+  );
 
   it('skips a player2 natural blackjack and starts player1', () => {
     const session = createGameSession({

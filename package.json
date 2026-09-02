@@ -12,9 +12,12 @@
     "build": "pnpm --filter @blackjack/shared build && pnpm --filter server build && pnpm --filter client build",
     "test": "pnpm --filter server test && pnpm --filter client test",
     "test:e2e": "pnpm --filter @blackjack/shared build && playwright test",
-    "typecheck": "pnpm --filter @blackjack/shared typecheck && pnpm --filter server typecheck && pnpm --filter client typecheck"
+    "typecheck": "pnpm --filter @blackjack/shared typecheck && pnpm --filter server typecheck && pnpm --filter client typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1"
+    "@playwright/test": "^1.62.1",
+    "prettier": "^3.9.6"
   }
 }

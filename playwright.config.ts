@@ -31,7 +31,8 @@ export default defineConfig({
       timeout: 30_000,
     },
     {
-      command: 'pnpm --filter client exec vite --host 127.0.0.1 --port 5174 --strictPort',
+      command:
+        'pnpm --filter client exec vite --host 127.0.0.1 --port 5174 --strictPort',
       env: {
         VITE_SOCKET_URL: serverUrl,
       },
