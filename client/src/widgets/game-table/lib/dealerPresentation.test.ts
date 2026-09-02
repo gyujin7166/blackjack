@@ -25,12 +25,14 @@ describe('createDealerPresentationPlan', () => {
   });
 
   it('orders every additional dealer draw by hand index', () => {
-    expect(plan('player1', 'finished', [
-      upcard,
-      holeCard,
-      { rank: '2', suit: 'spades' },
-      { rank: '3', suit: 'diamonds' },
-    ])).toEqual({
+    expect(
+      plan('player1', 'finished', [
+        upcard,
+        holeCard,
+        { rank: '2', suit: 'spades' },
+        { rank: '3', suit: 'diamonds' },
+      ]),
+    ).toEqual({
       shouldRevealHoleCard: true,
       drawIndices: [2, 3],
       waitForInitialDeal: false,
@@ -38,11 +40,9 @@ describe('createDealerPresentationPlan', () => {
   });
 
   it('waits for initial deal when the first state is already finished', () => {
-    expect(plan(null, 'finished', [
-      upcard,
-      holeCard,
-      { rank: '4', suit: 'spades' },
-    ])).toEqual({
+    expect(
+      plan(null, 'finished', [upcard, holeCard, { rank: '4', suit: 'spades' }]),
+    ).toEqual({
       shouldRevealHoleCard: true,
       drawIndices: [2],
       waitForInitialDeal: true,

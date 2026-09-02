@@ -69,8 +69,8 @@ export function DealtCard3D({
     readinessUrls ?? (ownTextureUrl ? [ownTextureUrl] : [])
   ).join('\n');
   const textureUrls = readinessKey ? readinessKey.split('\n') : [];
-  const texturesReady = areCardTexturesReady(textureUrls)
-    || preparedReadinessKey === readinessKey;
+  const texturesReady =
+    areCardTexturesReady(textureUrls) || preparedReadinessKey === readinessKey;
 
   useLayoutEffect(() => {
     const group = groupRef.current;
@@ -80,10 +80,10 @@ export function DealtCard3D({
     const isFirstTarget = previousTarget === null;
     const isStrictModeReplay = Boolean(
       previousTarget &&
-        !initialDealCompletedRef.current &&
-        previousTarget[0] === targetX &&
-        previousTarget[1] === targetY &&
-        previousTarget[2] === targetZ,
+      !initialDealCompletedRef.current &&
+      previousTarget[0] === targetX &&
+      previousTarget[1] === targetY &&
+      previousTarget[2] === targetZ,
     );
 
     if (isFirstTarget) {
@@ -183,11 +183,8 @@ export function DealtCard3D({
   return (
     <group ref={groupRef}>
       {texturesReady
-        ? children ?? (hidden
-          ? <Card3D hidden />
-          : card
-            ? <Card3D card={card} />
-            : null)
+        ? (children ??
+          (hidden ? <Card3D hidden /> : card ? <Card3D card={card} /> : null))
         : null}
     </group>
   );

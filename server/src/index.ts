@@ -1,6 +1,9 @@
 import { createServer } from 'node:http';
 
-import type { ClientToServerEvents, ServerToClientEvents } from '@blackjack/shared';
+import type {
+  ClientToServerEvents,
+  ServerToClientEvents,
+} from '@blackjack/shared';
 import { Server } from 'socket.io';
 
 import { handleHttpRequest } from './http/health.js';

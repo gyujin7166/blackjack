@@ -50,7 +50,10 @@ describe('hand evaluation', () => {
     [['A', 'A', '9'], 21],
     [['A', 'A', '9', 'K'], 21],
   ] satisfies Array<[Rank[], number]>)('%j scores %i', (ranks, score) => {
-    expect(evaluateHand(hand(...ranks))).toMatchObject({ score, isBust: false });
+    expect(evaluateHand(hand(...ranks))).toMatchObject({
+      score,
+      isBust: false,
+    });
   });
 
   it('marks a hand over 21 as bust', () => {
@@ -63,9 +66,12 @@ describe('hand evaluation', () => {
   it.each([
     ['A', 'K'],
     ['A', '10'],
-  ] satisfies Rank[][])('recognizes %s + %s as a natural blackjack', (...ranks) => {
-    expect(evaluateHand(hand(...ranks)).isNaturalBlackjack).toBe(true);
-  });
+  ] satisfies Rank[][])(
+    'recognizes %s + %s as a natural blackjack',
+    (...ranks) => {
+      expect(evaluateHand(hand(...ranks)).isNaturalBlackjack).toBe(true);
+    },
+  );
 
   it('does not recognize a three-card 21 as a natural blackjack', () => {
     expect(evaluateHand(hand('A', '5', '5')).isNaturalBlackjack).toBe(false);

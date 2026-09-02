@@ -17,19 +17,7 @@ export interface ChatMessagePayload {
 export type Suit = 'clubs' | 'diamonds' | 'hearts' | 'spades';
 
 export type Rank =
-  | 'A'
-  | '2'
-  | '3'
-  | '4'
-  | '5'
-  | '6'
-  | '7'
-  | '8'
-  | '9'
-  | '10'
-  | 'J'
-  | 'Q'
-  | 'K';
+  'A' | '2' | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K';
 
 export interface Card {
   suit: Suit;
@@ -39,12 +27,7 @@ export interface Card {
 export type GamePhase = PlayerSeat | 'dealer' | 'finished';
 export type GameResult = 'win' | 'lose' | 'push';
 export type PlayerStatus =
-  | 'waiting'
-  | 'playing'
-  | 'stood'
-  | 'bust'
-  | 'blackjack'
-  | 'twenty-one';
+  'waiting' | 'playing' | 'stood' | 'bust' | 'blackjack' | 'twenty-one';
 
 export interface PublicPlayerState {
   hand: Card[];
@@ -72,10 +55,7 @@ export interface GameStatePayload {
 
 export type GameAction = 'hit' | 'stand';
 export type GameActionRejectionReason =
-  | 'not_in_game'
-  | 'not_your_turn'
-  | 'game_finished'
-  | 'game_unavailable';
+  'not_in_game' | 'not_your_turn' | 'game_finished' | 'game_unavailable';
 
 export interface GameActionRejectedPayload {
   action: GameAction;
