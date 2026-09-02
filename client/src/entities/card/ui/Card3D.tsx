@@ -2,24 +2,16 @@ import type { Card } from "@blackjack/shared";
 import { useThree } from "@react-three/fiber";
 import { useEffect, useState } from "react";
 import {
-  CanvasTexture,
   ExtrudeGeometry,
-  LinearFilter,
-  LinearMipmapLinearFilter,
   MeshPhysicalMaterial,
   PlaneGeometry,
   Shape,
-  SRGBColorSpace,
-  TextureLoader,
 } from "three";
 
 import { CARD_BACK_ASSET_URL, getCardFaceAssetUrl } from "../lib/cardAsset";
 import {
-  CARD_TEXTURE_HEIGHT,
-  CARD_TEXTURE_WIDTH,
-  type CardTextureCacheEntry,
-  getCardTextureCacheEntry,
-  getContainedImageRect,
+  ensureCardTexture,
+  getCachedCardTexture,
 } from "../lib/cardTexture";
 
 type Vector3Tuple = [number, number, number];
@@ -88,95 +80,23 @@ const CARD_BODY_MATERIAL = new MeshPhysicalMaterial({
   roughness: 0.54,
 });
 
-const svgTextureLoader = new TextureLoader();
-
-function rasterizeSvgTexture(image: HTMLImageElement) {
-  const canvas = document.createElement("canvas");
-
-  canvas.width = CARD_TEXTURE_WIDTH;
-  canvas.height = CARD_TEXTURE_HEIGHT;
-
-  const context = canvas.getContext("2d");
-
-  if (!context) {
-    throw new Error("Canvas 2D context is unavailable.");
-  }
-
-  const sourceWidth = image.naturalWidth || image.width;
-  const sourceHeight = image.naturalHeight || image.height;
-
-  const drawRect = getContainedImageRect(
-    sourceWidth,
-    sourceHeight,
-    canvas.width,
-    canvas.height,
-  );
-
-  context.drawImage(
-    image,
-    drawRect.x,
-    drawRect.y,
-    drawRect.width,
-    drawRect.height,
-  );
-
-  const texture = new CanvasTexture(canvas);
-
-  texture.colorSpace = SRGBColorSpace;
-  texture.generateMipmaps = true;
-  texture.magFilter = LinearFilter;
-  texture.minFilter = LinearMipmapLinearFilter;
-
-  return texture;
-}
-
-function loadCardTexture(url: string, entry: CardTextureCacheEntry) {
-  if (entry.loading || entry.texture) return;
-
-  entry.loading = true;
-
-  svgTextureLoader.load(
-    url,
-    (sourceTexture) => {
-      const texture = rasterizeSvgTexture(
-        sourceTexture.image as HTMLImageElement,
-      );
-
-      sourceTexture.dispose();
-
-      entry.texture = texture;
-      entry.loading = false;
-
-      entry.listeners.forEach((listener) => {
-        listener(texture);
-      });
-
-      entry.listeners.clear();
-    },
-    undefined,
-    () => {
-      entry.loading = false;
-    },
-  );
-}
-
 function useCardTexture(url: string) {
   const invalidate = useThree((state) => state.invalidate);
 
   const [loadedTexture, setLoadedTexture] = useState<{
-    texture: CanvasTexture | null;
+    texture: ReturnType<typeof getCachedCardTexture>;
     url: string;
   }>(() => ({
-    texture: getCardTextureCacheEntry(url).texture,
+    texture: getCachedCardTexture(url),
     url,
   }));
 
   useEffect(() => {
-    const entry = getCardTextureCacheEntry(url);
-
     let active = true;
 
-    const handleTextureReady = (texture: CanvasTexture) => {
+    const handleTextureReady = (
+      texture: NonNullable<ReturnType<typeof getCachedCardTexture>>,
+    ) => {
       if (!active) return;
 
       setLoadedTexture({
@@ -187,24 +107,25 @@ function useCardTexture(url: string) {
       invalidate();
     };
 
-    if (entry.texture) {
-      handleTextureReady(entry.texture);
+    const cachedTexture = getCachedCardTexture(url);
+    if (cachedTexture) {
+      handleTextureReady(cachedTexture);
     } else {
-      entry.listeners.add(handleTextureReady);
-      loadCardTexture(url, entry);
+      void ensureCardTexture(url).then(handleTextureReady, (error) => {
+        console.error(`Failed to load card texture: ${url}`, error);
+      });
     }
 
     return () => {
       active = false;
-      entry.listeners.delete(handleTextureReady);
     };
   }, [invalidate, url]);
 
   if (loadedTexture.url === url) {
-    return loadedTexture.texture;
+    return loadedTexture.texture ?? getCachedCardTexture(url);
   }
 
-  return getCardTextureCacheEntry(url).texture;
+  return getCachedCardTexture(url);
 }
 
 export function Card3D({

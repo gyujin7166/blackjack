@@ -1,9 +1,17 @@
 import type { Card } from '@blackjack/shared';
 import { useThree } from '@react-three/fiber';
 import gsap from 'gsap';
-import { type ReactNode, useLayoutEffect, useRef } from 'react';
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import type { Group } from 'three';
 
+import {
+  CARD_BACK_ASSET_URL,
+  getCardFaceAssetUrl,
+} from '../../../entities/card/lib/cardAsset';
+import {
+  areCardTexturesReady,
+  prepareCardTextures,
+} from '../../../entities/card/lib/cardTexture';
 import { Card3D } from '../../../entities/card/ui/Card3D';
 import {
   getGameSoundTrigger,
@@ -17,6 +25,7 @@ type DealtCard3DProps = {
   delay: number;
   initialDealSound?: GameSound;
   onInitialDealComplete?: () => void;
+  readinessUrls?: readonly string[];
   startPosition: Vector3Tuple;
   targetPosition: Vector3Tuple;
   targetRotation?: Vector3Tuple;
@@ -33,6 +42,7 @@ export function DealtCard3D({
   delay,
   initialDealSound,
   onInitialDealComplete,
+  readinessUrls,
   startPosition,
   targetPosition,
   targetRotation = [0, 0, 0],
@@ -41,12 +51,26 @@ export function DealtCard3D({
   const previousTargetRef = useRef<Vector3Tuple | null>(null);
   const initialDealCompletedRef = useRef(false);
   const initialDealSoundPlayedRef = useRef(false);
+  const [preparedReadinessKey, setPreparedReadinessKey] = useState<
+    string | null
+  >(null);
   const initialDealCompleteCallbackRef = useRef(onInitialDealComplete);
   initialDealCompleteCallbackRef.current = onInitialDealComplete;
   const invalidate = useThree((state) => state.invalidate);
   const [startX, startY, startZ] = startPosition;
   const [targetX, targetY, targetZ] = targetPosition;
   const [rotationX, rotationY, rotationZ] = targetRotation;
+  const ownTextureUrl = hidden
+    ? CARD_BACK_ASSET_URL
+    : card
+      ? getCardFaceAssetUrl(card)
+      : null;
+  const readinessKey = (
+    readinessUrls ?? (ownTextureUrl ? [ownTextureUrl] : [])
+  ).join('\n');
+  const textureUrls = readinessKey ? readinessKey.split('\n') : [];
+  const texturesReady = areCardTexturesReady(textureUrls)
+    || preparedReadinessKey === readinessKey;
 
   useLayoutEffect(() => {
     const group = groupRef.current;
@@ -65,6 +89,18 @@ export function DealtCard3D({
     if (isFirstTarget) {
       group.position.set(startX, startY, startZ);
       invalidate();
+    }
+
+    if (!texturesReady) {
+      let active = true;
+
+      void prepareCardTextures(textureUrls).then(() => {
+        if (active) setPreparedReadinessKey(readinessKey);
+      });
+
+      return () => {
+        active = false;
+      };
     }
 
     previousTargetRef.current = [targetX, targetY, targetZ];
@@ -131,6 +167,8 @@ export function DealtCard3D({
     rotationX,
     rotationY,
     rotationZ,
+    readinessKey,
+    texturesReady,
   ]);
 
   return (
