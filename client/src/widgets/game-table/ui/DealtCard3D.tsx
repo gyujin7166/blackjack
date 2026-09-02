@@ -173,11 +173,13 @@ export function DealtCard3D({
 
   return (
     <group ref={groupRef}>
-      {children ?? (hidden
-        ? <Card3D hidden />
-        : card
-          ? <Card3D card={card} />
-          : null)}
+      {texturesReady
+        ? children ?? (hidden
+          ? <Card3D hidden />
+          : card
+            ? <Card3D card={card} />
+            : null)
+        : null}
     </group>
   );
 }

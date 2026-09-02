@@ -139,6 +139,8 @@ export function Card3D({
 
   const texture = useCardTexture(textureUrl);
 
+  if (!texture) return null;
+
   return (
     <group position={position} rotation={rotation}>
       <mesh
