@@ -18,8 +18,8 @@ type Card3DProps = {
   rotation?: Vector3Tuple;
 } & ({ card: Card; hidden?: false } | { card?: never; hidden: true });
 
-const CARD_WIDTH = 1.12;
-const CARD_HEIGHT = 1.54;
+const CARD_WIDTH = 1.105;
+const CARD_HEIGHT = 1.5325;
 const CARD_CORNER_RADIUS = 0.085;
 
 const CARD_SURFACE_HEIGHT = 1.525;
@@ -159,7 +159,6 @@ export function Card3D({
       </mesh>
 
       <mesh
-        castShadow
         position={[0, 0.036, 0]}
         receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
@@ -178,6 +177,7 @@ export function Card3D({
           polygonOffset
           polygonOffsetFactor={-1}
           roughness={0.5}
+          alphaTest={0.5}
         />
       </mesh>
     </group>
