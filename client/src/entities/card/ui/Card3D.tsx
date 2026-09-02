@@ -3,8 +3,11 @@ import { useThree } from "@react-three/fiber";
 import { useEffect, useState } from "react";
 import {
   CanvasTexture,
+  ExtrudeGeometry,
   LinearFilter,
   LinearMipmapLinearFilter,
+  MeshPhysicalMaterial,
+  PlaneGeometry,
   Shape,
   SRGBColorSpace,
   TextureLoader,
@@ -68,6 +71,22 @@ const CARD_SHAPE = createRoundedRectShape(
   CARD_HEIGHT,
   CARD_CORNER_RADIUS,
 );
+
+const CARD_BODY_GEOMETRY = new ExtrudeGeometry(
+  CARD_SHAPE,
+  CARD_EXTRUDE_OPTIONS,
+);
+const CARD_SURFACE_GEOMETRY = new PlaneGeometry(
+  CARD_SURFACE_WIDTH,
+  CARD_SURFACE_HEIGHT,
+);
+const CARD_BODY_MATERIAL = new MeshPhysicalMaterial({
+  clearcoat: 0.12,
+  clearcoatRoughness: 0.62,
+  color: "#f8f3e9",
+  metalness: 0,
+  roughness: 0.54,
+});
 
 const svgTextureLoader = new TextureLoader();
 
@@ -207,13 +226,15 @@ export function Card3D({
         receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <extrudeGeometry args={[CARD_SHAPE, CARD_EXTRUDE_OPTIONS]} />
-        <meshPhysicalMaterial
-          clearcoat={0.12}
-          clearcoatRoughness={0.62}
-          color="#f8f3e9"
-          metalness={0}
-          roughness={0.54}
+        <primitive
+          attach="geometry"
+          dispose={null}
+          object={CARD_BODY_GEOMETRY}
+        />
+        <primitive
+          attach="material"
+          dispose={null}
+          object={CARD_BODY_MATERIAL}
         />
       </mesh>
 
@@ -223,7 +244,11 @@ export function Card3D({
         receiveShadow
         rotation={[-Math.PI / 2, 0, 0]}
       >
-        <planeGeometry args={[CARD_SURFACE_WIDTH, CARD_SURFACE_HEIGHT]} />
+        <primitive
+          attach="geometry"
+          dispose={null}
+          object={CARD_SURFACE_GEOMETRY}
+        />
         <meshPhysicalMaterial
           clearcoat={0.16}
           clearcoatRoughness={0.52}

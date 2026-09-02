@@ -1,7 +1,7 @@
 import type { CanvasTexture } from 'three';
 
-export const CARD_TEXTURE_WIDTH = 1000;
-export const CARD_TEXTURE_HEIGHT = 1400;
+export const CARD_TEXTURE_WIDTH = 750;
+export const CARD_TEXTURE_HEIGHT = 1050;
 
 export type CardTextureCacheEntry = {
   listeners: Set<(texture: CanvasTexture) => void>;
