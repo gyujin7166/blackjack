@@ -91,6 +91,11 @@ export function DealtCard3D({
       invalidate();
     }
 
+    if (isFirstTarget || isStrictModeReplay) {
+      group.visible = false;
+      invalidate();
+    }
+
     if (!texturesReady) {
       let active = true;
 
@@ -121,6 +126,10 @@ export function DealtCard3D({
       duration: isFirstTarget || isStrictModeReplay ? 0.36 : 0.18,
       ease: 'power2.out',
       overwrite: true,
+      onStart: () => {
+        group.visible = true;
+        invalidate();
+      },
       onComplete: () => {
         const isInitialDeal = !initialDealCompletedRef.current;
         initialDealCompletedRef.current = true;
