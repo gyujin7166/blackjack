@@ -47,9 +47,10 @@ export function DealerRevealCard3D({
   const [showFace, setShowFace] = useState(false);
   const invalidate = useThree((state) => state.invalidate);
   const faceTextureUrl = card ? getCardFaceAssetUrl(card) : null;
-  const faceTextureReady = !faceTextureUrl
-    || areCardTexturesReady([faceTextureUrl])
-    || preparedFaceTextureUrl === faceTextureUrl;
+  const faceTextureReady =
+    !faceTextureUrl ||
+    areCardTexturesReady([faceTextureUrl]) ||
+    preparedFaceTextureUrl === faceTextureUrl;
   revealCompleteCallbackRef.current = onRevealComplete;
 
   useLayoutEffect(() => {

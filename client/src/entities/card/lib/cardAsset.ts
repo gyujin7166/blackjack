@@ -1,7 +1,6 @@
 import type { Card } from '@blackjack/shared';
 
-export const CARD_BACK_ASSET_URL =
-  '/cards/opendecks/raster/card-back-red.webp';
+export const CARD_BACK_ASSET_URL = '/cards/opendecks/raster/card-back-red.webp';
 
 const rankAssetNames: Record<Card['rank'], string> = {
   A: 'ace',

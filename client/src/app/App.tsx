@@ -74,7 +74,9 @@ export function App() {
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<ChatMessagePayload[]>([]);
   const [turnTimer, setTurnTimer] = useState<TurnTimerPayload | null>(null);
-  const [turnTimerDeadline, setTurnTimerDeadline] = useState<number | null>(null);
+  const [turnTimerDeadline, setTurnTimerDeadline] = useState<number | null>(
+    null,
+  );
   const [turnTimerSeconds, setTurnTimerSeconds] = useState(0);
   const [animationRound, setAnimationRound] = useState(0);
   const matchRef = useRef<MatchmakingMatchedPayload | null>(null);
@@ -286,25 +288,25 @@ export function App() {
   const connectionPresentation = connectionPresentations[connectionStatus];
   const canAct = Boolean(
     isConnected &&
-      match &&
-      gameState &&
-      !actionPending &&
-      gameState.phase !== 'finished' &&
-      gameState.phase === match.seat,
+    match &&
+    gameState &&
+    !actionPending &&
+    gameState.phase !== 'finished' &&
+    gameState.phase === match.seat,
   );
   const selfAccepted = Boolean(
     match &&
-      rematchState &&
-      (match.seat === 'player1'
-        ? rematchState.player1Accepted
-        : rematchState.player2Accepted),
+    rematchState &&
+    (match.seat === 'player1'
+      ? rematchState.player1Accepted
+      : rematchState.player2Accepted),
   );
   const opponentAccepted = Boolean(
     match &&
-      rematchState &&
-      (match.seat === 'player1'
-        ? rematchState.player2Accepted
-        : rematchState.player1Accepted),
+    rematchState &&
+    (match.seat === 'player1'
+      ? rematchState.player2Accepted
+      : rematchState.player1Accepted),
   );
   const handleAction = (action: 'hit' | 'stand') => {
     if (!canAct) return;
@@ -317,7 +319,11 @@ export function App() {
     socket.emit('rematch:accept');
   };
   const handleNewOpponent = () => {
-    if (newOpponentPending || rematchPending || gameState?.phase !== 'finished') {
+    if (
+      newOpponentPending ||
+      rematchPending ||
+      gameState?.phase !== 'finished'
+    ) {
       return;
     }
     setNewOpponentPending(true);

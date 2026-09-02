@@ -5,7 +5,14 @@ import type {
   ServerToClientEvents,
 } from '@blackjack/shared';
 import type { GameTableHudProps } from '../widgets/game-table/ui/GameTableHud';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
@@ -54,7 +61,8 @@ type GameTableSceneTestProps = Omit<
 
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
 vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
-  const { GameTableHud } = await import('../widgets/game-table/ui/GameTableHud');
+  const { GameTableHud } =
+    await import('../widgets/game-table/ui/GameTableHud');
 
   return {
     GameTableScene: (props: GameTableSceneTestProps) => {
@@ -75,7 +83,9 @@ const playerOneMatch: MatchmakingMatchedPayload = {
   seat: 'player1',
 };
 
-function gameState(overrides: Partial<GameStatePayload> = {}): GameStatePayload {
+function gameState(
+  overrides: Partial<GameStatePayload> = {},
+): GameStatePayload {
   return {
     roomId: 'game:test-room',
     phase: 'player1',
@@ -221,14 +231,18 @@ describe('matchmaking', () => {
     fireEvent.click(screen.getByRole('button', { name: '게임 시작' }));
 
     expect(socketMock.emit).toHaveBeenCalledWith('matchmaking:join');
-    expect(screen.getByRole('button', { name: '상대 찾는 중...' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: '상대 찾는 중...' }),
+    ).toBeDisabled();
   });
 
   it('shows waiting and a preparation state without internal room or seat data', () => {
     render(<App />);
     serverEmit('matchmaking:waiting');
 
-    expect(screen.getByText('다른 플레이어를 기다리고 있습니다.')).toBeVisible();
+    expect(
+      screen.getByText('다른 플레이어를 기다리고 있습니다.'),
+    ).toBeVisible();
 
     serverEmit('matchmaking:matched', playerOneMatch);
 
@@ -260,23 +274,32 @@ describe('game state', () => {
       selfScore: 10,
       opponentScore: 11,
     },
-  ] as const)('maps $seat to self and opponent', ({ seat, selfScore, opponentScore }) => {
-    renderMatched({ ...playerOneMatch, seat });
+  ] as const)(
+    'maps $seat to self and opponent',
+    ({ seat, selfScore, opponentScore }) => {
+      renderMatched({ ...playerOneMatch, seat });
 
-    serverEmit('game:state', gameState());
+      serverEmit('game:state', gameState());
 
-    const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
-    const opponent = screen.getByRole('heading', { name: 'Opponent' }).parentElement!;
-    expect(within(self).getByText(`Score: ${selfScore}`)).toBeVisible();
-    expect(within(opponent).getByText(`Score: ${opponentScore}`)).toBeVisible();
-  });
+      const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
+      const opponent = screen.getByRole('heading', {
+        name: 'Opponent',
+      }).parentElement!;
+      expect(within(self).getByText(`Score: ${selfScore}`)).toBeVisible();
+      expect(
+        within(opponent).getByText(`Score: ${opponentScore}`),
+      ).toBeVisible();
+    },
+  );
 
   it('keeps the dealer score unknown while the hole card is hidden', () => {
     renderMatched();
 
     serverEmit('game:state', gameState());
 
-    const dealer = screen.getByRole('heading', { name: 'Dealer' }).parentElement!;
+    const dealer = screen.getByRole('heading', {
+      name: 'Dealer',
+    }).parentElement!;
     expect(within(dealer).getByText('Dealer score: ?')).toBeVisible();
     expect(dealer).not.toHaveTextContent('undefined');
   });
@@ -318,10 +341,7 @@ describe('3D game table', () => {
     const latestState = gameState({
       player1: {
         ...initialState.player1,
-        hand: [
-          ...initialState.player1.hand,
-          { rank: '6', suit: 'diamonds' },
-        ],
+        hand: [...initialState.player1.hand, { rank: '6', suit: 'diamonds' }],
         score: 17,
       },
     });
@@ -349,15 +369,15 @@ describe('3D game table', () => {
     const initialState = gameState();
     serverEmit('game:state', initialState);
 
-    serverEmit('game:state', gameState({
-      player1: {
-        ...initialState.player1,
-        hand: [
-          ...initialState.player1.hand,
-          { rank: '6', suit: 'diamonds' },
-        ],
-      },
-    }));
+    serverEmit(
+      'game:state',
+      gameState({
+        player1: {
+          ...initialState.player1,
+          hand: [...initialState.player1.hand, { rank: '6', suit: 'diamonds' }],
+        },
+      }),
+    );
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ animationRound: 0 }),
@@ -398,13 +418,16 @@ describe('3D game table', () => {
       expect.objectContaining({ animationRound: 0 }),
     );
 
-    serverEmit('game:state', gameState({
-      phase: 'finished',
-      player1: {
-        ...gameState().player1,
-        result: 'push',
-      },
-    }));
+    serverEmit(
+      'game:state',
+      gameState({
+        phase: 'finished',
+        player1: {
+          ...gameState().player1,
+          result: 'push',
+        },
+      }),
+    );
 
     expect(gameTableSceneMock).toHaveBeenLastCalledWith(
       expect.objectContaining({ animationRound: 1 }),
@@ -442,22 +465,25 @@ describe('3D game table', () => {
     },
     {
       lifecycle: 'matched',
-      trigger: () => serverEmit('matchmaking:matched', {
-        roomId: 'game:replacement',
-        seat: 'player2',
-      }),
+      trigger: () =>
+        serverEmit('matchmaking:matched', {
+          roomId: 'game:replacement',
+          seat: 'player2',
+        }),
     },
     {
       lifecycle: 'opponent disconnected',
-      trigger: () => serverEmit('game:opponent-disconnected', {
-        roomId: 'game:test-room',
-      }),
+      trigger: () =>
+        serverEmit('game:opponent-disconnected', {
+          roomId: 'game:test-room',
+        }),
     },
     {
       lifecycle: 'opponent left',
-      trigger: () => serverEmit('matchmaking:opponent-left', {
-        roomId: 'game:test-room',
-      }),
+      trigger: () =>
+        serverEmit('matchmaking:opponent-left', {
+          roomId: 'game:test-room',
+        }),
     },
     {
       lifecycle: 'self disconnected',
@@ -488,7 +514,9 @@ describe('3D game table', () => {
     renderMatched();
     serverEmit('game:state', gameState());
 
-    let sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    let sceneProps = gameTableSceneMock.mock.calls.at(
+      -1,
+    )?.[0] as GameTableHudProps;
     expect(sceneProps.canAct).toBe(true);
     act(() => sceneProps.onHit());
     expect(socketMock.emit).toHaveBeenCalledWith('player:hit');
@@ -508,7 +536,9 @@ describe('3D game table', () => {
       text: 'HUD에서 만나요',
     });
 
-    let sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    let sceneProps = gameTableSceneMock.mock.calls.at(
+      -1,
+    )?.[0] as GameTableHudProps;
     expect(sceneProps.chatMessages).toEqual([
       expect.objectContaining({ text: 'HUD에서 만나요' }),
     ]);
@@ -527,7 +557,9 @@ describe('3D game table', () => {
       durationMs: 30_000,
     });
 
-    const sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    const sceneProps = gameTableSceneMock.mock.calls.at(
+      -1,
+    )?.[0] as GameTableHudProps;
     expect(sceneProps.turnTimer).toEqual(
       expect.objectContaining({ player: 'player1', durationMs: 30_000 }),
     );
@@ -542,7 +574,9 @@ describe('3D game table', () => {
     });
     serverEmit('game:state', finishedState);
 
-    const sceneProps = gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps;
+    const sceneProps = gameTableSceneMock.mock.calls.at(
+      -1,
+    )?.[0] as GameTableHudProps;
     expect(sceneProps).toEqual(
       expect.objectContaining({
         rematchPending: false,
@@ -560,34 +594,40 @@ describe('turn controls', () => {
   it.each([
     { phase: 'player1', enabled: true },
     { phase: 'player2', enabled: false },
-  ] as const)('sets action availability from phase $phase', ({ phase, enabled }) => {
-    renderMatched();
-    serverEmit('game:state', gameState({ phase }));
+  ] as const)(
+    'sets action availability from phase $phase',
+    ({ phase, enabled }) => {
+      renderMatched();
+      serverEmit('game:state', gameState({ phase }));
 
-    const hit = screen.getByRole('button', { name: 'Hit' });
-    const stand = screen.getByRole('button', { name: 'Stand' });
-    if (enabled) {
-      expect(hit).toBeEnabled();
-      expect(stand).toBeEnabled();
-    } else {
-      expect(hit).toBeDisabled();
-      expect(stand).toBeDisabled();
-    }
-  });
+      const hit = screen.getByRole('button', { name: 'Hit' });
+      const stand = screen.getByRole('button', { name: 'Stand' });
+      if (enabled) {
+        expect(hit).toBeEnabled();
+        expect(stand).toBeEnabled();
+      } else {
+        expect(hit).toBeDisabled();
+        expect(stand).toBeDisabled();
+      }
+    },
+  );
 
   it.each([
     { button: 'Hit', event: 'player:hit' },
     { button: 'Stand', event: 'player:stand' },
-  ] as const)('emits $event once when $button is clicked', ({ button, event }) => {
-    renderMatched();
-    serverEmit('game:state', gameState());
-    socketMock.emit.mockClear();
+  ] as const)(
+    'emits $event once when $button is clicked',
+    ({ button, event }) => {
+      renderMatched();
+      serverEmit('game:state', gameState());
+      socketMock.emit.mockClear();
 
-    fireEvent.click(screen.getByRole('button', { name: button }));
+      fireEvent.click(screen.getByRole('button', { name: button }));
 
-    expect(socketMock.emit).toHaveBeenCalledTimes(1);
-    expect(socketMock.emit).toHaveBeenCalledWith(event);
-  });
+      expect(socketMock.emit).toHaveBeenCalledTimes(1);
+      expect(socketMock.emit).toHaveBeenCalledWith(event);
+    },
+  );
 
   it('prevents duplicate actions until the next game state arrives', () => {
     renderMatched();
@@ -616,7 +656,7 @@ describe('action rejection', () => {
     ['not_your_turn', '현재 내 차례가 아닙니다.'],
     ['game_finished', '이미 종료된 게임입니다.'],
     ['game_unavailable', '게임을 사용할 수 없습니다.'],
-  ] satisfies Array<[GameActionRejectedPayload['reason'], string]>) (
+  ] satisfies Array<[GameActionRejectedPayload['reason'], string]>)(
     'shows a message for %s',
     (reason, message) => {
       renderMatched();
@@ -668,7 +708,9 @@ describe('finished game', () => {
     );
 
     const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
-    const dealer = screen.getByRole('heading', { name: 'Dealer' }).parentElement!;
+    const dealer = screen.getByRole('heading', {
+      name: 'Dealer',
+    }).parentElement!;
     expect(within(self).getByText(`Result: ${label}`)).toBeVisible();
     expect(within(dealer).getByText('Dealer score: 20')).toBeVisible();
     expect(
@@ -678,8 +720,12 @@ describe('finished game', () => {
       { rank: '10', suit: 'hearts' },
       { rank: 'K', suit: 'clubs' },
     ]);
-    expect(screen.queryByRole('button', { name: 'Hit' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Stand' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Hit' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Stand' }),
+    ).not.toBeInTheDocument();
   });
 });
 
@@ -687,7 +733,9 @@ describe('rematch', () => {
   it('shows the rematch button only after the game finishes', () => {
     renderMatched();
     serverEmit('game:state', gameState());
-    expect(screen.queryByRole('button', { name: '재대결' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '재대결' }),
+    ).not.toBeInTheDocument();
     const current = gameState();
 
     serverEmit(
@@ -704,7 +752,10 @@ describe('rematch', () => {
   it('emits one acceptance and prevents a fast duplicate click', () => {
     renderMatched();
     const current = gameState();
-    serverEmit('game:state', gameState({ phase: 'finished', player1: current.player1 }));
+    serverEmit(
+      'game:state',
+      gameState({ phase: 'finished', player1: current.player1 }),
+    );
     socketMock.emit.mockClear();
     const rematchButton = screen.getByRole('button', { name: '재대결' });
 
@@ -728,12 +779,17 @@ describe('rematch', () => {
   ] as const)('shows self acceptance for $seat', ({ seat, payload }) => {
     renderMatched({ ...playerOneMatch, seat });
     const current = gameState();
-    serverEmit('game:state', gameState({ phase: 'finished', player1: current.player1 }));
+    serverEmit(
+      'game:state',
+      gameState({ phase: 'finished', player1: current.player1 }),
+    );
 
     serverEmit('rematch:state', { roomId: playerOneMatch.roomId, ...payload });
 
     expect(screen.getByText('재대결 요청 완료')).toBeVisible();
-    expect(screen.getByText('상대 플레이어의 선택을 기다리고 있습니다.')).toBeVisible();
+    expect(
+      screen.getByText('상대 플레이어의 선택을 기다리고 있습니다.'),
+    ).toBeVisible();
     expect(screen.getByRole('button', { name: '재대결' })).toBeDisabled();
   });
 
@@ -749,11 +805,16 @@ describe('rematch', () => {
   ] as const)('shows opponent acceptance for $seat', ({ seat, payload }) => {
     renderMatched({ ...playerOneMatch, seat });
     const current = gameState();
-    serverEmit('game:state', gameState({ phase: 'finished', player1: current.player1 }));
+    serverEmit(
+      'game:state',
+      gameState({ phase: 'finished', player1: current.player1 }),
+    );
 
     serverEmit('rematch:state', { roomId: playerOneMatch.roomId, ...payload });
 
-    expect(screen.getByText('상대 플레이어가 재대결을 요청했습니다.')).toBeVisible();
+    expect(
+      screen.getByText('상대 플레이어가 재대결을 요청했습니다.'),
+    ).toBeVisible();
     expect(screen.getByRole('button', { name: '재대결' })).toBeEnabled();
   });
 
@@ -781,7 +842,10 @@ describe('rematch', () => {
   it('keeps the game scene while returning to normal round controls', () => {
     renderMatched();
     const current = gameState();
-    serverEmit('game:state', gameState({ phase: 'finished', player1: current.player1 }));
+    serverEmit(
+      'game:state',
+      gameState({ phase: 'finished', player1: current.player1 }),
+    );
     serverEmit('rematch:state', {
       roomId: playerOneMatch.roomId,
       player1Accepted: true,
@@ -793,7 +857,9 @@ describe('rematch', () => {
     expect(screen.getByTestId('game-table-scene')).toBeVisible();
     expect(screen.queryByText(/Room:/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Seat:/)).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '재대결' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: '재대결' }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Hit' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Stand' })).toBeEnabled();
   });
@@ -856,9 +922,13 @@ describe('new opponent', () => {
 
     serverEmit('matchmaking:waiting');
 
-    expect(screen.getByText('다른 플레이어를 기다리고 있습니다.')).toBeVisible();
+    expect(
+      screen.getByText('다른 플레이어를 기다리고 있습니다.'),
+    ).toBeVisible();
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Dealer' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('재대결 요청 완료')).not.toBeInTheDocument();
   });
 
@@ -872,7 +942,9 @@ describe('new opponent', () => {
     });
 
     expect(screen.getByText('게임 테이블을 준비하고 있습니다.')).toBeVisible();
-    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Dealer' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('A♠')).not.toBeInTheDocument();
   });
 
@@ -883,7 +955,9 @@ describe('new opponent', () => {
     serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId });
 
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Dealer' }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText('상대 플레이어가 새 상대 찾기를 선택했습니다.'),
     ).toBeVisible();
@@ -920,12 +994,16 @@ describe('new opponent', () => {
         socketMock.connected = true;
         act(() => socketMock.serverEmit('connect'));
       } else {
-        serverEmit('game:opponent-disconnected', { roomId: playerOneMatch.roomId });
+        serverEmit('game:opponent-disconnected', {
+          roomId: playerOneMatch.roomId,
+        });
       }
       serverEmit('matchmaking:matched', playerOneMatch);
       serverEmit('game:state', gameState({ phase: 'finished' }));
 
-      expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeEnabled();
+      expect(
+        screen.getByRole('button', { name: '새 상대 찾기' }),
+      ).toBeEnabled();
     },
   );
 });
@@ -1046,7 +1124,9 @@ describe('turn timer', () => {
     {
       lifecycle: 'matchmaking:opponent-left',
       trigger: () =>
-        serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId }),
+        serverEmit('matchmaking:opponent-left', {
+          roomId: playerOneMatch.roomId,
+        }),
     },
     {
       lifecycle: 'game:opponent-disconnected',
@@ -1101,7 +1181,9 @@ describe('turn timer', () => {
 describe('room chat', () => {
   it('shows chat controls only inside a matched game', () => {
     renderMatched();
-    expect(screen.queryByRole('heading', { name: 'Chat' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Chat' }),
+    ).not.toBeInTheDocument();
 
     serverEmit('game:state', gameState());
 
@@ -1205,7 +1287,9 @@ describe('room chat', () => {
     {
       lifecycle: 'matchmaking:opponent-left',
       trigger: () =>
-        serverEmit('matchmaking:opponent-left', { roomId: playerOneMatch.roomId }),
+        serverEmit('matchmaking:opponent-left', {
+          roomId: playerOneMatch.roomId,
+        }),
     },
     {
       lifecycle: 'game:opponent-disconnected',
@@ -1262,14 +1346,18 @@ describe('disconnect', () => {
       '연결이 끊어졌습니다. 자동으로 다시 연결을 시도하고 있습니다.',
     );
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Dealer' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     socketMock.connected = true;
     act(() => socketMock.serverEmit('connect'));
     serverEmit('matchmaking:matched', playerOneMatch);
 
-    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Dealer' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
@@ -1285,9 +1373,13 @@ describe('disconnect', () => {
 
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
     expect(screen.queryByText('Seat: player1')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Dealer' })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('heading', { name: 'Dealer' }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    expect(screen.getByText('상대 플레이어의 연결이 종료되었습니다.')).toBeVisible();
+    expect(
+      screen.getByText('상대 플레이어의 연결이 종료되었습니다.'),
+    ).toBeVisible();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
     expect(screen.getByRole('status')).toHaveTextContent(
       '서버에 연결되었습니다.',
@@ -1307,7 +1399,9 @@ describe('disconnect', () => {
     expect(
       screen.queryByText('상대 플레이어의 연결이 종료되었습니다.'),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '상대 찾는 중...' })).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: '상대 찾는 중...' }),
+    ).toBeDisabled();
   });
 
   it.each(['opponent', 'self'] as const)(
@@ -1315,7 +1409,10 @@ describe('disconnect', () => {
     (disconnectedParty) => {
       renderMatched();
       const current = gameState();
-      serverEmit('game:state', gameState({ phase: 'finished', player1: current.player1 }));
+      serverEmit(
+        'game:state',
+        gameState({ phase: 'finished', player1: current.player1 }),
+      );
       fireEvent.click(screen.getByRole('button', { name: '재대결' }));
       serverEmit('rematch:state', {
         roomId: playerOneMatch.roomId,
@@ -1325,14 +1422,18 @@ describe('disconnect', () => {
       expect(screen.getByText('재대결 요청 완료')).toBeVisible();
 
       if (disconnectedParty === 'opponent') {
-        serverEmit('game:opponent-disconnected', { roomId: playerOneMatch.roomId });
+        serverEmit('game:opponent-disconnected', {
+          roomId: playerOneMatch.roomId,
+        });
       } else {
         socketMock.connected = false;
         act(() => socketMock.serverEmit('disconnect', 'transport close'));
       }
 
       expect(screen.queryByText('재대결 요청 완료')).not.toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: '재대결' })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: '재대결' }),
+      ).not.toBeInTheDocument();
     },
   );
 });

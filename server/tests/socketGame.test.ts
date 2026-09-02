@@ -15,10 +15,16 @@ import type {
 } from '@blackjack/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Server } from 'socket.io';
-import { io as createClient, type Socket as ClientSocket } from 'socket.io-client';
+import {
+  io as createClient,
+  type Socket as ClientSocket,
+} from 'socket.io-client';
 
 import type { Rank, Suit, Card } from '../src/blackjack/index.js';
-import { createGameSession, type GameSessionOptions } from '../src/game/index.js';
+import {
+  createGameSession,
+  type GameSessionOptions,
+} from '../src/game/index.js';
 import {
   registerSocketHandlers,
   type SocketServerState,
@@ -49,11 +55,17 @@ const fixtures: Fixture[] = [];
 
 function onceEvent<T>(client: TestClient, event: string): Promise<T> {
   return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error(`Timed out waiting for ${event}`)), 1_000);
-    client.once(event as never, ((payload: T) => {
-      clearTimeout(timeout);
-      resolve(payload);
-    }) as never);
+    const timeout = setTimeout(
+      () => reject(new Error(`Timed out waiting for ${event}`)),
+      1_000,
+    );
+    client.once(
+      event as never,
+      ((payload: T) => {
+        clearTimeout(timeout);
+        resolve(payload);
+      }) as never,
+    );
   });
 }
 
@@ -74,7 +86,9 @@ async function createFixture(
     turnTimeoutMs,
   });
 
-  await new Promise<void>((resolve) => httpServer.listen(0, '127.0.0.1', resolve));
+  await new Promise<void>((resolve) =>
+    httpServer.listen(0, '127.0.0.1', resolve),
+  );
   const { port } = httpServer.address() as AddressInfo;
   const clients = Array.from({ length: clientCount }, () =>
     createClient(`http://127.0.0.1:${port}`, {
@@ -145,7 +159,10 @@ describe('Socket.IO game integration', () => {
     const stateTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
 
     const [playerOneMatch] = await matchClients(clients);
-    const [playerOneState, playerTwoState] = await Promise.all([stateOne, stateTwo]);
+    const [playerOneState, playerTwoState] = await Promise.all([
+      stateOne,
+      stateTwo,
+    ]);
 
     expect(playerOneState).toEqual(playerTwoState);
     expect(playerOneState.roomId).toBe(playerOneMatch.roomId);
@@ -162,12 +179,17 @@ describe('Socket.IO game integration', () => {
     const nextOne = onceEvent<GameStatePayload>(clients[0], 'game:state');
     const nextTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
     clients[0].emit('player:hit');
-    const [playerOneState, playerTwoState] = await Promise.all([nextOne, nextTwo]);
+    const [playerOneState, playerTwoState] = await Promise.all([
+      nextOne,
+      nextTwo,
+    ]);
 
     expect(playerOneState).toEqual(playerTwoState);
     expect(playerOneState.player1.hand).toHaveLength(3);
     expect(playerOneState.phase).toBe('player1');
-    expect(state.gameSessions.get(playerOneMatch.roomId)?.player1.hand).toHaveLength(3);
+    expect(
+      state.gameSessions.get(playerOneMatch.roomId)?.player1.hand,
+    ).toHaveLength(3);
   });
 
   it('allows the current player to stand and broadcasts the turn change', async () => {
@@ -180,7 +202,10 @@ describe('Socket.IO game integration', () => {
     const nextOne = onceEvent<GameStatePayload>(clients[0], 'game:state');
     const nextTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
     clients[0].emit('player:stand');
-    const [playerOneState, playerTwoState] = await Promise.all([nextOne, nextTwo]);
+    const [playerOneState, playerTwoState] = await Promise.all([
+      nextOne,
+      nextTwo,
+    ]);
 
     expect(playerOneState).toEqual(playerTwoState);
     expect(playerOneState.player1.status).toBe('stood');
@@ -236,7 +261,10 @@ describe('Socket.IO game integration', () => {
 
     clients[0].emit('player:hit');
 
-    await expect(rejection).resolves.toEqual({ action: 'hit', reason: 'not_in_game' });
+    await expect(rejection).resolves.toEqual({
+      action: 'hit',
+      reason: 'not_in_game',
+    });
   });
 
   it('rejects an action when the room session is unavailable', async () => {
@@ -279,8 +307,14 @@ describe('Socket.IO game integration', () => {
     await matchClients(clients);
     await Promise.all([initialOne, initialTwo]);
 
-    const playerTwoTurnOne = onceEvent<GameStatePayload>(clients[0], 'game:state');
-    const playerTwoTurnTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
+    const playerTwoTurnOne = onceEvent<GameStatePayload>(
+      clients[0],
+      'game:state',
+    );
+    const playerTwoTurnTwo = onceEvent<GameStatePayload>(
+      clients[1],
+      'game:state',
+    );
     clients[0].emit('player:stand');
     await Promise.all([playerTwoTurnOne, playerTwoTurnTwo]);
 
@@ -301,8 +335,14 @@ describe('Socket.IO game integration', () => {
     const initialTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
     const [match] = await matchClients(clients);
     await Promise.all([initialOne, initialTwo]);
-    const playerTwoTurnOne = onceEvent<GameStatePayload>(clients[0], 'game:state');
-    const playerTwoTurnTwo = onceEvent<GameStatePayload>(clients[1], 'game:state');
+    const playerTwoTurnOne = onceEvent<GameStatePayload>(
+      clients[0],
+      'game:state',
+    );
+    const playerTwoTurnTwo = onceEvent<GameStatePayload>(
+      clients[1],
+      'game:state',
+    );
     clients[0].emit('player:stand');
     await Promise.all([playerTwoTurnOne, playerTwoTurnTwo]);
     const finishedOne = onceEvent<GameStatePayload>(clients[0], 'game:state');
@@ -432,7 +472,9 @@ describe('server turn timer', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100));
     expect(state.gameSessions.get(match.roomId)?.phase).toBe('player1');
-    expect(state.gameSessions.get(match.roomId)?.player1.status).toBe('playing');
+    expect(state.gameSessions.get(match.roomId)?.player1.status).toBe(
+      'playing',
+    );
 
     const timeoutState = onceEvent<GameStatePayload>(clients[0], 'game:state');
     expect((await timeoutState).player1.status).toBe('stood');
@@ -507,8 +549,14 @@ describe('server turn timer', () => {
     const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
     await matchClients(clients);
     await Promise.all([initialState, initialTimer]);
-    const playerTwoState = onceEvent<GameStatePayload>(clients[0], 'game:state');
-    const playerTwoTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    const playerTwoState = onceEvent<GameStatePayload>(
+      clients[0],
+      'game:state',
+    );
+    const playerTwoTimer = onceEvent<TurnTimerPayload>(
+      clients[0],
+      'turn:timer',
+    );
     clients[0].emit('player:stand');
     await Promise.all([playerTwoState, playerTwoTimer]);
     const finishedState = onceEvent<GameStatePayload>(clients[0], 'game:state');
@@ -532,14 +580,23 @@ describe('server turn timer', () => {
     const initialTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
     await matchClients(clients);
     await Promise.all([initialState, initialTimer]);
-    const playerTwoState = onceEvent<GameStatePayload>(clients[0], 'game:state');
-    const playerTwoTimer = onceEvent<TurnTimerPayload>(clients[0], 'turn:timer');
+    const playerTwoState = onceEvent<GameStatePayload>(
+      clients[0],
+      'game:state',
+    );
+    const playerTwoTimer = onceEvent<TurnTimerPayload>(
+      clients[0],
+      'turn:timer',
+    );
     clients[0].emit('player:stand');
     await Promise.all([playerTwoState, playerTwoTimer]);
     const finishedState = onceEvent<GameStatePayload>(clients[0], 'game:state');
     clients[1].emit('player:stand');
     await finishedState;
-    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    const acceptance = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
     clients[0].emit('rematch:accept');
     await acceptance;
     const rematchState = onceEvent<GameStatePayload>(clients[0], 'game:state');
@@ -598,8 +655,14 @@ describe('room chat relay', () => {
   it('broadcasts player1 canonical messages to both room players', async () => {
     const { clients } = await createFixture();
     const [match] = await matchClients(clients);
-    const playerOneMessage = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
-    const playerTwoMessage = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+    const playerOneMessage = onceEvent<ChatMessagePayload>(
+      clients[0],
+      'chat:message',
+    );
+    const playerTwoMessage = onceEvent<ChatMessagePayload>(
+      clients[1],
+      'chat:message',
+    );
 
     clients[0].emit('chat:send', { text: '안녕하세요' });
     const [messageOne, messageTwo] = await Promise.all([
@@ -684,8 +747,14 @@ describe('room chat relay', () => {
     const { clients } = await createFixture(undefined, 4);
     await matchClients(clients.slice(0, 2));
     await matchClients(clients.slice(2, 4));
-    const senderMessage = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
-    const opponentMessage = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
+    const senderMessage = onceEvent<ChatMessagePayload>(
+      clients[0],
+      'chat:message',
+    );
+    const opponentMessage = onceEvent<ChatMessagePayload>(
+      clients[1],
+      'chat:message',
+    );
     const otherRoomMessage = vi.fn();
     clients[2].on('chat:message', otherRoomMessage);
     clients[3].on('chat:message', otherRoomMessage);
@@ -698,7 +767,9 @@ describe('room chat relay', () => {
   });
 
   it('allows chat after the game has finished', async () => {
-    const { clients } = await createFixture(cards('10', '9', 'A', '8', '7', 'K'));
+    const { clients } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
     await matchClients(clients);
     const message = onceEvent<ChatMessagePayload>(clients[1], 'chat:message');
 
@@ -708,9 +779,14 @@ describe('room chat relay', () => {
   });
 
   it('allows chat while waiting for the other rematch acceptance', async () => {
-    const { clients } = await createFixture(cards('10', '9', 'A', '8', '7', 'K'));
+    const { clients } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
     await matchClients(clients);
-    const rematchState = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    const rematchState = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
     clients[0].emit('rematch:accept');
     await rematchState;
     const message = onceEvent<ChatMessagePayload>(clients[0], 'chat:message');
@@ -725,21 +801,23 @@ describe('matched disconnect cleanup', () => {
   it.each([
     { disconnectedIndex: 0, remainingIndex: 1, player: 'player1' },
     { disconnectedIndex: 1, remainingIndex: 0, player: 'player2' },
-  ])('notifies the opponent when $player disconnects', async ({
-    disconnectedIndex,
-    remainingIndex,
-  }) => {
-    const { clients } = await createFixture();
-    const matches = await matchClients(clients);
-    const notification = onceEvent<OpponentDisconnectedPayload>(
-      clients[remainingIndex],
-      'game:opponent-disconnected',
-    );
+  ])(
+    'notifies the opponent when $player disconnects',
+    async ({ disconnectedIndex, remainingIndex }) => {
+      const { clients } = await createFixture();
+      const matches = await matchClients(clients);
+      const notification = onceEvent<OpponentDisconnectedPayload>(
+        clients[remainingIndex],
+        'game:opponent-disconnected',
+      );
 
-    clients[disconnectedIndex].disconnect();
+      clients[disconnectedIndex].disconnect();
 
-    await expect(notification).resolves.toEqual({ roomId: matches[0].roomId });
-  });
+      await expect(notification).resolves.toEqual({
+        roomId: matches[0].roomId,
+      });
+    },
+  );
 
   it.each([0, 1])(
     'removes both active matches when client %i disconnects',
@@ -833,7 +911,10 @@ describe('new opponent matchmaking', () => {
       cards('10', '9', 'A', '8', '7', 'K'),
     );
     const [requesterMatch] = await matchClients(clients);
-    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    const acceptance = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
     clients[0].emit('rematch:accept');
     await acceptance;
     const opponentLeft = onceEvent<OpponentLeftPayload>(
@@ -856,12 +937,12 @@ describe('new opponent matchmaking', () => {
         (candidate) => candidate.roomId === requesterMatch.roomId,
       ),
     ).toHaveLength(0);
-    expect(io.sockets.sockets.get(clients[0].id!)?.rooms.has(requesterMatch.roomId)).toBe(
-      false,
-    );
-    expect(io.sockets.sockets.get(clients[1].id!)?.rooms.has(requesterMatch.roomId)).toBe(
-      false,
-    );
+    expect(
+      io.sockets.sockets.get(clients[0].id!)?.rooms.has(requesterMatch.roomId),
+    ).toBe(false);
+    expect(
+      io.sockets.sockets.get(clients[1].id!)?.rooms.has(requesterMatch.roomId),
+    ).toBe(false);
   });
 
   it('immediately matches the requester with an existing FIFO waiter in a new room', async () => {
@@ -906,7 +987,9 @@ describe('new opponent matchmaking', () => {
   });
 
   it('does not auto-queue the old opponent and allows a later manual FIFO rematch', async () => {
-    const { clients } = await createFixture(cards('10', '9', 'A', '8', '7', 'K'));
+    const { clients } = await createFixture(
+      cards('10', '9', 'A', '8', '7', 'K'),
+    );
     const [oldMatch] = await matchClients(clients);
     const requesterWaiting = onceEvent<void>(clients[0], 'matchmaking:waiting');
     const opponentLeft = onceEvent<OpponentLeftPayload>(
@@ -979,7 +1062,9 @@ describe('new opponent matchmaking', () => {
     expect(state.gameSessions.has(leavingMatch.roomId)).toBe(false);
     expect(state.gameSessions.get(otherMatch.roomId)).toBe(otherSession);
     expect(state.activeMatches.get(clients[2].id!)).toEqual(otherMatch);
-    expect(state.activeMatches.get(clients[3].id!)?.roomId).toBe(otherMatch.roomId);
+    expect(state.activeMatches.get(clients[3].id!)?.roomId).toBe(
+      otherMatch.roomId,
+    );
     expect(otherRoomNotice).not.toHaveBeenCalled();
   });
 });
@@ -994,26 +1079,35 @@ describe('rematch', () => {
       acceptingIndex: 1,
       expected: { player1Accepted: false, player2Accepted: true },
     },
-  ])('broadcasts one acceptance without replacing the session', async ({
-    acceptingIndex,
-    expected,
-  }) => {
-    const { clients, state, sessionFactory } = await createFixture(
-      cards('10', '9', 'A', '8', '7', 'K'),
-    );
-    const [match] = await matchClients(clients);
-    const originalSession = state.gameSessions.get(match.roomId);
-    const stateOne = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
-    const stateTwo = onceEvent<RematchStatePayload>(clients[1], 'rematch:state');
+  ])(
+    'broadcasts one acceptance without replacing the session',
+    async ({ acceptingIndex, expected }) => {
+      const { clients, state, sessionFactory } = await createFixture(
+        cards('10', '9', 'A', '8', '7', 'K'),
+      );
+      const [match] = await matchClients(clients);
+      const originalSession = state.gameSessions.get(match.roomId);
+      const stateOne = onceEvent<RematchStatePayload>(
+        clients[0],
+        'rematch:state',
+      );
+      const stateTwo = onceEvent<RematchStatePayload>(
+        clients[1],
+        'rematch:state',
+      );
 
-    clients[acceptingIndex].emit('rematch:accept');
-    const [playerOneState, playerTwoState] = await Promise.all([stateOne, stateTwo]);
+      clients[acceptingIndex].emit('rematch:accept');
+      const [playerOneState, playerTwoState] = await Promise.all([
+        stateOne,
+        stateTwo,
+      ]);
 
-    expect(playerOneState).toEqual({ roomId: match.roomId, ...expected });
-    expect(playerTwoState).toEqual(playerOneState);
-    expect(state.gameSessions.get(match.roomId)).toBe(originalSession);
-    expect(sessionFactory).toHaveBeenCalledTimes(1);
-  });
+      expect(playerOneState).toEqual({ roomId: match.roomId, ...expected });
+      expect(playerTwoState).toEqual(playerOneState);
+      expect(state.gameSessions.get(match.roomId)).toBe(originalSession);
+      expect(sessionFactory).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('starts a new session in the same room after both players accept', async () => {
     const { clients, io, state, sessionFactory } = await createFixture(
@@ -1051,8 +1145,12 @@ describe('rematch', () => {
     expect(state.rematchAcceptances.has(roomId)).toBe(false);
     expect(state.activeMatches.get(clients[0].id!)).toEqual(matches[0]);
     expect(state.activeMatches.get(clients[1].id!)).toEqual(matches[1]);
-    expect(io.sockets.sockets.get(clients[0].id!)?.rooms.has(roomId)).toBe(true);
-    expect(io.sockets.sockets.get(clients[1].id!)?.rooms.has(roomId)).toBe(true);
+    expect(io.sockets.sockets.get(clients[0].id!)?.rooms.has(roomId)).toBe(
+      true,
+    );
+    expect(io.sockets.sockets.get(clients[1].id!)?.rooms.has(roomId)).toBe(
+      true,
+    );
     expect(unexpectedMatched).not.toHaveBeenCalled();
   });
 
@@ -1070,7 +1168,10 @@ describe('rematch', () => {
     );
     clients[0].emit('rematch:accept');
     await firstAcceptance;
-    const firstRematchState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const firstRematchState = onceEvent<GameStatePayload>(
+      clients[0],
+      'game:state',
+    );
     clients[1].emit('rematch:accept');
     await firstRematchState;
 
@@ -1082,7 +1183,10 @@ describe('rematch', () => {
     );
     clients[0].emit('rematch:accept');
     await secondAcceptance;
-    const secondRematchState = onceEvent<GameStatePayload>(clients[0], 'game:state');
+    const secondRematchState = onceEvent<GameStatePayload>(
+      clients[0],
+      'game:state',
+    );
     clients[1].emit('rematch:accept');
     await secondRematchState;
 
@@ -1094,7 +1198,10 @@ describe('rematch', () => {
       cards('10', '9', 'A', '8', '7', 'K'),
     );
     const [match] = await matchClients(clients);
-    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    const acceptance = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
     clients[0].emit('rematch:accept');
     await acceptance;
 
@@ -1137,7 +1244,10 @@ describe('rematch', () => {
       cards('10', '9', 'A', '8', '7', 'K'),
     );
     const [match] = await matchClients(clients);
-    const acceptance = onceEvent<RematchStatePayload>(clients[0], 'rematch:state');
+    const acceptance = onceEvent<RematchStatePayload>(
+      clients[0],
+      'rematch:state',
+    );
     clients[0].emit('rematch:accept');
     await acceptance;
     expect(state.rematchAcceptances.has(match.roomId)).toBe(true);

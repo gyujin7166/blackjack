@@ -31,18 +31,23 @@ async function ensureChatIsAvailable(pageA: Page, pageB: Page) {
     const dialogB = pageB.getByRole('dialog', { name: RESULT_DIALOG_NAME });
     const ready = { state: 'waiting' as 'chat' | 'finished' | 'waiting' };
 
-    await expect.poll(async () => {
-      if (await inputA.isVisible() && await inputB.isVisible()) {
-        ready.state = 'chat';
-        return ready.state;
-      }
-      if (await dialogA.isVisible() && await dialogB.isVisible()) {
-        ready.state = 'finished';
-        return ready.state;
-      }
-      ready.state = 'waiting';
-      return ready.state;
-    }, { timeout: 20_000 }).not.toBe('waiting');
+    await expect
+      .poll(
+        async () => {
+          if ((await inputA.isVisible()) && (await inputB.isVisible())) {
+            ready.state = 'chat';
+            return ready.state;
+          }
+          if ((await dialogA.isVisible()) && (await dialogB.isVisible())) {
+            ready.state = 'finished';
+            return ready.state;
+          }
+          ready.state = 'waiting';
+          return ready.state;
+        },
+        { timeout: 20_000 },
+      )
+      .not.toBe('waiting');
 
     if (ready.state === 'chat') return;
     if (ready.state === 'finished') await acceptRematch(pageA, pageB);
@@ -59,22 +64,27 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
   const standB = pageB.getByRole('button', { name: 'Stand' });
 
   for (let turn = 0; turn < 2; turn += 1) {
-    await expect.poll(async () => {
-      if (await dialogA.isVisible() || await dialogB.isVisible()) {
-        return 'finished';
-      }
-      if (await standA.isVisible() && await standA.isEnabled()) {
-        await standA.click();
-        return 'acted';
-      }
-      if (await standB.isVisible() && await standB.isEnabled()) {
-        await standB.click();
-        return 'acted';
-      }
-      return 'waiting';
-    }, { timeout: 40_000 }).not.toBe('waiting');
+    await expect
+      .poll(
+        async () => {
+          if ((await dialogA.isVisible()) || (await dialogB.isVisible())) {
+            return 'finished';
+          }
+          if ((await standA.isVisible()) && (await standA.isEnabled())) {
+            await standA.click();
+            return 'acted';
+          }
+          if ((await standB.isVisible()) && (await standB.isEnabled())) {
+            await standB.click();
+            return 'acted';
+          }
+          return 'waiting';
+        },
+        { timeout: 40_000 },
+      )
+      .not.toBe('waiting');
 
-    if (await dialogA.isVisible() || await dialogB.isVisible()) break;
+    if ((await dialogA.isVisible()) || (await dialogB.isVisible())) break;
   }
 
   await expect(dialogA).toBeVisible({ timeout: 20_000 });

@@ -21,8 +21,7 @@ afterEach(() => {
 
 describe('card texture URL cache', () => {
   it('reuses one entry for the same card URL and card back URL', () => {
-    const faceUrl =
-      '/cards/opendecks/raster/fronts/spades/king_of_spades.webp';
+    const faceUrl = '/cards/opendecks/raster/fronts/spades/king_of_spades.webp';
     const backUrl = '/cards/opendecks/raster/card-back-red.webp';
 
     expect(getCardTextureCacheEntry(faceUrl)).toBe(
@@ -34,18 +33,23 @@ describe('card texture URL cache', () => {
   });
 
   it('uses different entries for different card URLs', () => {
-    expect(getCardTextureCacheEntry(
-      '/cards/opendecks/raster/fronts/spades/king_of_spades.webp',
-    )).not.toBe(getCardTextureCacheEntry(
-      '/cards/opendecks/raster/fronts/hearts/king_of_hearts.webp',
-    ));
+    expect(
+      getCardTextureCacheEntry(
+        '/cards/opendecks/raster/fronts/spades/king_of_spades.webp',
+      ),
+    ).not.toBe(
+      getCardTextureCacheEntry(
+        '/cards/opendecks/raster/fronts/hearts/king_of_hearts.webp',
+      ),
+    );
   });
 
   it('shares one in-flight load and immediately exposes the cached texture', async () => {
     const url = '/cards/opendecks/raster/fronts/clubs/ace_of_clubs.webp';
     let handleLoad: Parameters<TextureLoader['load']>[1] | undefined;
 
-    const loadSpy = vi.spyOn(TextureLoader.prototype, 'load')
+    const loadSpy = vi
+      .spyOn(TextureLoader.prototype, 'load')
       .mockImplementation((_url, onLoad) => {
         handleLoad = onLoad;
         return new Texture();
@@ -80,10 +84,10 @@ describe('card texture URL cache', () => {
   });
 
   it('reports load failure and allows a later request to retry', async () => {
-    const url =
-      '/cards/opendecks/raster/fronts/diamonds/ace_of_diamonds.webp';
+    const url = '/cards/opendecks/raster/fronts/diamonds/ace_of_diamonds.webp';
     const errors: Array<Parameters<TextureLoader['load']>[3]> = [];
-    const loadSpy = vi.spyOn(TextureLoader.prototype, 'load')
+    const loadSpy = vi
+      .spyOn(TextureLoader.prototype, 'load')
       .mockImplementation((_url, _onLoad, _onProgress, onError) => {
         errors.push(onError);
         return new Texture();
@@ -111,11 +115,12 @@ describe('card texture URL cache', () => {
       onError: Parameters<TextureLoader['load']>[3];
       onLoad: NonNullable<Parameters<TextureLoader['load']>[1]>;
     }> = [];
-    vi.spyOn(TextureLoader.prototype, 'load')
-      .mockImplementation((_url, onLoad, _onProgress, onError) => {
+    vi.spyOn(TextureLoader.prototype, 'load').mockImplementation(
+      (_url, onLoad, _onProgress, onError) => {
         loads.push({ onError, onLoad: onLoad! });
         return new Texture();
-      });
+      },
+    );
     let settled = false;
     const readiness = prepareCardTextures(urls).then((failures) => {
       settled = true;

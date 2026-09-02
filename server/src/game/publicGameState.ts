@@ -13,7 +13,8 @@ export function createPublicGameState(
     score: evaluateHand(player.hand).score,
     result: player.result,
   });
-  const revealDealer = session.phase === 'dealer' || session.phase === 'finished';
+  const revealDealer =
+    session.phase === 'dealer' || session.phase === 'finished';
   const dealerUpCard = session.dealer.hand[0];
 
   return {
