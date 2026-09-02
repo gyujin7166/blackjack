@@ -1,17 +1,14 @@
 import {
-  CanvasTexture,
   LinearFilter,
   LinearMipmapLinearFilter,
   SRGBColorSpace,
   TextureLoader,
 } from 'three';
-
-export const CARD_TEXTURE_WIDTH = 750;
-export const CARD_TEXTURE_HEIGHT = 1050;
+import type { Texture } from 'three';
 
 export type CardTextureCacheEntry = {
-  promise: Promise<CanvasTexture> | null;
-  texture: CanvasTexture | null;
+  promise: Promise<Texture> | null;
+  texture: Texture | null;
 };
 
 export type CardTextureLoadFailure = {
@@ -20,7 +17,7 @@ export type CardTextureLoadFailure = {
 };
 
 const cardTextureCache = new Map<string, CardTextureCacheEntry>();
-const svgTextureLoader = new TextureLoader();
+const cardTextureLoader = new TextureLoader();
 
 export function getCardTextureCacheEntry(url: string) {
   const cachedEntry = cardTextureCache.get(url);
@@ -34,60 +31,16 @@ export function getCardTextureCacheEntry(url: string) {
   return entry;
 }
 
-function rasterizeSvgTexture(image: HTMLImageElement) {
-  const canvas = document.createElement('canvas');
-
-  canvas.width = CARD_TEXTURE_WIDTH;
-  canvas.height = CARD_TEXTURE_HEIGHT;
-
-  const context = canvas.getContext('2d');
-
-  if (!context) {
-    throw new Error('Canvas 2D context is unavailable.');
-  }
-
-  const sourceWidth = image.naturalWidth || image.width;
-  const sourceHeight = image.naturalHeight || image.height;
-
-  const drawRect = getContainedImageRect(
-    sourceWidth,
-    sourceHeight,
-    canvas.width,
-    canvas.height,
-  );
-
-  context.drawImage(
-    image,
-    drawRect.x,
-    drawRect.y,
-    drawRect.width,
-    drawRect.height,
-  );
-
-  const texture = new CanvasTexture(canvas);
-
-  texture.colorSpace = SRGBColorSpace;
-  texture.generateMipmaps = true;
-  texture.magFilter = LinearFilter;
-  texture.minFilter = LinearMipmapLinearFilter;
-
-  return texture;
-}
-
 function loadCardTexture(url: string) {
-  return new Promise<CanvasTexture>((resolve, reject) => {
-    svgTextureLoader.load(
+  return new Promise<Texture>((resolve, reject) => {
+    cardTextureLoader.load(
       url,
-      (sourceTexture) => {
-        try {
-          resolve(rasterizeSvgTexture(
-            sourceTexture.image as HTMLImageElement,
-          ));
-        } catch (error) {
-          reject(error);
-        } finally {
-          sourceTexture.dispose();
-        }
+      (texture) => {
+        texture.colorSpace = SRGBColorSpace;
+        texture.generateMipmaps = true;
+        texture.magFilter = LinearFilter;
+        texture.minFilter = LinearMipmapLinearFilter;
+        resolve(texture);
       },
       undefined,
       (error) => {
@@ -137,34 +90,4 @@ export async function prepareCardTextures(urls: readonly string[]) {
       ? [{ error: result.reason, url: uniqueUrls[index] }]
       : [],
   );
-}
-
-export function getContainedImageRect(
-  sourceWidth: number,
-  sourceHeight: number,
-  targetWidth: number,
-  targetHeight: number,
-) {
-  if (
-    sourceWidth <= 0
-    || sourceHeight <= 0
-    || targetWidth <= 0
-    || targetHeight <= 0
-  ) {
-    throw new RangeError('Image dimensions must be positive.');
-  }
-
-  const scale = Math.min(
-    targetWidth / sourceWidth,
-    targetHeight / sourceHeight,
-  );
-  const width = sourceWidth * scale;
-  const height = sourceHeight * scale;
-
-  return {
-    height,
-    width,
-    x: (targetWidth - width) / 2,
-    y: (targetHeight - height) / 2,
-  };
 }

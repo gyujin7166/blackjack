@@ -5,16 +5,16 @@ import { CARD_BACK_ASSET_URL, getCardFaceAssetUrl } from './cardAsset';
 
 describe('card assets', () => {
   it.each([
-    [{ rank: 'A', suit: 'spades' }, '/cards/opendecks/fronts/spades/ace_of_spades.svg'],
-    [{ rank: '10', suit: 'hearts' }, '/cards/opendecks/fronts/hearts/10_of_hearts.svg'],
-    [{ rank: 'J', suit: 'diamonds' }, '/cards/opendecks/fronts/diamonds/jack_of_diamonds.svg'],
-    [{ rank: 'Q', suit: 'clubs' }, '/cards/opendecks/fronts/clubs/queen_of_clubs.svg'],
-    [{ rank: 'K', suit: 'spades' }, '/cards/opendecks/fronts/spades/king_of_spades.svg'],
-  ] satisfies Array<[Card, string]>)('maps %o to its OpenDecks SVG', (card, expected) => {
+    [{ rank: 'A', suit: 'spades' }, '/cards/opendecks/raster/fronts/spades/ace_of_spades.webp'],
+    [{ rank: '10', suit: 'hearts' }, '/cards/opendecks/raster/fronts/hearts/10_of_hearts.webp'],
+    [{ rank: 'J', suit: 'diamonds' }, '/cards/opendecks/raster/fronts/diamonds/jack_of_diamonds.webp'],
+    [{ rank: 'Q', suit: 'clubs' }, '/cards/opendecks/raster/fronts/clubs/queen_of_clubs.webp'],
+    [{ rank: 'K', suit: 'spades' }, '/cards/opendecks/raster/fronts/spades/king_of_spades.webp'],
+  ] satisfies Array<[Card, string]>)('maps %o to its OpenDecks WebP', (card, expected) => {
     expect(getCardFaceAssetUrl(card)).toBe(expected);
   });
 
-  it('maps every standard card to a unique local SVG URL', () => {
+  it('maps every standard card to a unique local raster URL', () => {
     const ranks: Rank[] = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
     const suits: Suit[] = ['clubs', 'diamonds', 'hearts', 'spades'];
     const urls = suits.flatMap((suit) =>
@@ -22,9 +22,13 @@ describe('card assets', () => {
 
     expect(new Set(urls)).toHaveLength(52);
     expect(urls).toHaveLength(52);
+    expect(urls.every((url) => url.endsWith('.webp'))).toBe(true);
+    expect(urls.every((url) => !url.endsWith('.svg'))).toBe(true);
   });
 
   it('uses the local red OpenDecks card back', () => {
-    expect(CARD_BACK_ASSET_URL).toBe('/cards/opendecks/card-back-red.svg');
+    expect(CARD_BACK_ASSET_URL).toBe(
+      '/cards/opendecks/raster/card-back-red.webp',
+    );
   });
 });

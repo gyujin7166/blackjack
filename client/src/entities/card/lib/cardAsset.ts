@@ -1,6 +1,7 @@
 import type { Card } from '@blackjack/shared';
 
-export const CARD_BACK_ASSET_URL = '/cards/opendecks/card-back-red.svg';
+export const CARD_BACK_ASSET_URL =
+  '/cards/opendecks/raster/card-back-red.webp';
 
 const rankAssetNames: Record<Card['rank'], string> = {
   A: 'ace',
@@ -20,5 +21,5 @@ const rankAssetNames: Record<Card['rank'], string> = {
 
 export function getCardFaceAssetUrl(card: Card) {
   const rank = rankAssetNames[card.rank];
-  return `/cards/opendecks/fronts/${card.suit}/${rank}_of_${card.suit}.svg`;
+  return `/cards/opendecks/raster/fronts/${card.suit}/${rank}_of_${card.suit}.webp`;
 }
