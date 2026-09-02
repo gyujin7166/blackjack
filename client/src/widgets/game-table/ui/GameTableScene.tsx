@@ -16,6 +16,10 @@ import {
 } from 'three';
 import type { PerspectiveCamera } from 'three';
 
+import {
+  CARD_BACK_ASSET_URL,
+  getCardFaceAssetUrl,
+} from '../../../entities/card/lib/cardAsset';
 import { Card3D } from '../../../entities/card/ui/Card3D';
 import {
   createDealerPresentationPlan,
@@ -165,12 +169,14 @@ function PlayerHand({
   cards,
   owner,
   animationRound,
+  initialDealReadinessUrls,
   x,
   z,
 }: {
   cards: Card[];
   owner: PlayerSeat;
   animationRound: number;
+  initialDealReadinessUrls: readonly string[];
   x: number;
   z: number;
 }) {
@@ -198,6 +204,7 @@ function PlayerHand({
               : 0}
             initialDealSound={index < 2 ? 'initialDeal' : 'draw'}
             key={`${animationRound}:${owner}:${index}`}
+            readinessUrls={index < 2 ? initialDealReadinessUrls : undefined}
             startPosition={dealOrigin}
             targetPosition={[
               handX + centerOffset * spacing,
@@ -216,6 +223,7 @@ function DealerHand({
   cards,
   animationRound,
   drawIndices,
+  initialDealReadinessUrls,
   onDrawComplete,
   onHoleCardDealComplete,
   onHoleCardRevealComplete,
@@ -224,6 +232,7 @@ function DealerHand({
   cards: Array<Card | HiddenCard>;
   animationRound: number;
   drawIndices: number[];
+  initialDealReadinessUrls: readonly string[];
   onDrawComplete: () => void;
   onHoleCardDealComplete: () => void;
   onHoleCardRevealComplete: () => void;
@@ -256,6 +265,7 @@ function DealerHand({
               delay={2 * DEAL_STAGGER_SECONDS}
               initialDealSound="initialDeal"
               key={`${animationRound}:dealer:0`}
+              readinessUrls={initialDealReadinessUrls}
               startPosition={dealOrigin}
               targetPosition={position}
             />
@@ -267,6 +277,7 @@ function DealerHand({
             <DealerRevealCard3D
               card={'hidden' in card ? null : card}
               dealDelay={5 * DEAL_STAGGER_SECONDS}
+              dealReadinessUrls={initialDealReadinessUrls}
               initialDealSound="initialDeal"
               key={`${animationRound}:dealer:1`}
               onInitialDealComplete={onHoleCardDealComplete}
@@ -409,6 +420,27 @@ function GameTableRound({
 }: GameTableSceneProps) {
   const player1X = selfSeat === 'player1' ? 3.15 : -3.15;
   const player2X = selfSeat === 'player2' ? 3.15 : -3.15;
+  const initialDealReadinessUrls = useMemo(() => {
+    const urls = new Set<string>([CARD_BACK_ASSET_URL]);
+
+    gameState.player1.hand.slice(0, 2).forEach((card) => {
+      urls.add(getCardFaceAssetUrl(card));
+    });
+    gameState.player2.hand.slice(0, 2).forEach((card) => {
+      urls.add(getCardFaceAssetUrl(card));
+    });
+
+    const dealerUpCard = gameState.dealer.hand[0];
+    if (dealerUpCard && !('hidden' in dealerUpCard)) {
+      urls.add(getCardFaceAssetUrl(dealerUpCard));
+    }
+
+    return [...urls];
+  }, [
+    gameState.dealer.hand,
+    gameState.player1.hand,
+    gameState.player2.hand,
+  ]);
   const initialPlan = createDealerPresentationPlan({
     dealerHand: gameState.dealer.hand,
     phase: gameState.phase,
@@ -533,6 +565,7 @@ function GameTableRound({
         <PlayerHand
           animationRound={animationRound}
           cards={gameState.player1.hand}
+          initialDealReadinessUrls={initialDealReadinessUrls}
           owner="player1"
           x={player1X}
           z={1.82}
@@ -540,6 +573,7 @@ function GameTableRound({
         <PlayerHand
           animationRound={animationRound}
           cards={gameState.player2.hand}
+          initialDealReadinessUrls={initialDealReadinessUrls}
           owner="player2"
           x={player2X}
           z={1.82}
@@ -548,6 +582,7 @@ function GameTableRound({
           animationRound={animationRound}
           cards={gameState.dealer.hand}
           drawIndices={visibleDrawIndices}
+          initialDealReadinessUrls={initialDealReadinessUrls}
           onDrawComplete={handleDealerDrawComplete}
           onHoleCardDealComplete={handleHoleCardDealComplete}
           onHoleCardRevealComplete={handleHoleCardRevealComplete}
