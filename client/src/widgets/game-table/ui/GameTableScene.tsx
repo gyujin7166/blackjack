@@ -547,8 +547,9 @@ function GameTableRound({
           shadow-bias={-0.00012}
           shadow-camera-far={24}
           shadow-camera-near={1}
-          shadow-mapSize-height={1024}
-          shadow-mapSize-width={1024}
+          shadow-focus={0.8}
+          shadow-mapSize-height={2048}
+          shadow-mapSize-width={2048}
           shadow-normalBias={0.025}
         />
         <pointLight
