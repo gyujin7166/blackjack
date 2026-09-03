@@ -1,7 +1,60 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const RESULT_DIALOG_NAME = '게임 결과';
 const CHAT_MESSAGE = 'playwright-e2e-message';
+
+type RoundControlState =
+  'waiting' | 'stand-a' | 'stand-b' | 'settling' | 'finished';
+
+type StandActionResult = 'clicked' | 'not-actionable';
+
+interface StandSnapshot {
+  enabled: boolean;
+  visible: boolean;
+}
+
+async function getStandSnapshot(stand: Locator): Promise<StandSnapshot> {
+  return stand.evaluateAll((elements) => {
+    const button = elements[0];
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return { enabled: false, visible: false };
+    }
+
+    const style = window.getComputedStyle(button);
+    const visible =
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      button.getClientRects().length > 0;
+
+    return { enabled: visible && !button.disabled, visible };
+  });
+}
+
+async function triggerStandIfActionable(
+  stand: Locator,
+): Promise<StandActionResult> {
+  return stand.evaluateAll((elements) => {
+    const button = elements[0];
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return 'not-actionable';
+    }
+
+    const style = window.getComputedStyle(button);
+    const visible =
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      button.getClientRects().length > 0;
+
+    if (!visible || button.disabled) {
+      return 'not-actionable';
+    }
+
+    button.click();
+    return 'clicked';
+  });
+}
 
 async function expectMatched(page: Page) {
   await expect(
@@ -63,28 +116,46 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
   const standA = pageA.getByRole('button', { name: 'Stand' });
   const standB = pageB.getByRole('button', { name: 'Stand' });
 
-  for (let turn = 0; turn < 2; turn += 1) {
+  const getRoundControlState = async (): Promise<RoundControlState> => {
+    if ((await dialogA.isVisible()) || (await dialogB.isVisible())) {
+      return 'finished';
+    }
+
+    const [standAState, standBState] = await Promise.all([
+      getStandSnapshot(standA),
+      getStandSnapshot(standB),
+    ]);
+
+    if (!standAState.visible && !standBState.visible) return 'settling';
+    if (standAState.enabled) return 'stand-a';
+    if (standBState.enabled) return 'stand-b';
+    return 'waiting';
+  };
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const ready = { state: 'waiting' as RoundControlState };
+
     await expect
       .poll(
         async () => {
-          if ((await dialogA.isVisible()) || (await dialogB.isVisible())) {
-            return 'finished';
-          }
-          if ((await standA.isVisible()) && (await standA.isEnabled())) {
-            await standA.click();
-            return 'acted';
-          }
-          if ((await standB.isVisible()) && (await standB.isEnabled())) {
-            await standB.click();
-            return 'acted';
-          }
-          return 'waiting';
+          ready.state = await getRoundControlState();
+          return ready.state;
         },
         { timeout: 40_000 },
       )
       .not.toBe('waiting');
 
-    if ((await dialogA.isVisible()) || (await dialogB.isVisible())) break;
+    if (ready.state === 'finished' || ready.state === 'settling') break;
+
+    const stand = ready.state === 'stand-a' ? standA : standB;
+    const actionState = ready.state;
+    const actionResult = await triggerStandIfActionable(stand);
+
+    if (actionResult === 'not-actionable') continue;
+
+    await expect
+      .poll(getRoundControlState, { timeout: 40_000 })
+      .not.toBe(actionState);
   }
 
   await expect(dialogA).toBeVisible({ timeout: 20_000 });

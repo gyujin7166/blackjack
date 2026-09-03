@@ -11,7 +11,12 @@ export default defineConfig({
   reporter: 'list',
   use: {
     baseURL: clientUrl,
-    trace: 'retain-on-failure',
+    trace: {
+      mode: 'retain-on-failure',
+      screenshots: false,
+      snapshots: true,
+      sources: true,
+    },
     screenshot: 'only-on-failure',
   },
   projects: [
