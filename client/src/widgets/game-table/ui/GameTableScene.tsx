@@ -164,6 +164,7 @@ function PlayerHand({
   owner,
   animationRound,
   initialDealReadinessUrls,
+  interactive,
   x,
   z,
 }: {
@@ -171,6 +172,7 @@ function PlayerHand({
   owner: PlayerSeat;
   animationRound: number;
   initialDealReadinessUrls: readonly string[];
+  interactive: boolean;
   x: number;
   z: number;
 }) {
@@ -194,6 +196,7 @@ function PlayerHand({
               index < 2 ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS : 0
             }
             initialDealSound={index < 2 ? 'initialDeal' : 'draw'}
+            interactive={interactive}
             key={`${animationRound}:${owner}:${index}`}
             readinessUrls={index < 2 ? initialDealReadinessUrls : undefined}
             startPosition={dealOrigin}
@@ -585,6 +588,7 @@ function GameTableRound({
           animationRound={animationRound}
           cards={gameState.player1.hand}
           initialDealReadinessUrls={initialDealReadinessUrls}
+          interactive={selfSeat === 'player1'}
           owner="player1"
           x={player1X}
           z={1.82}
@@ -593,6 +597,7 @@ function GameTableRound({
           animationRound={animationRound}
           cards={gameState.player2.hand}
           initialDealReadinessUrls={initialDealReadinessUrls}
+          interactive={selfSeat === 'player2'}
           owner="player2"
           x={player2X}
           z={1.82}
