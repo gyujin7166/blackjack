@@ -1,7 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { errors, expect, test, type Page } from '@playwright/test';
 
 const RESULT_DIALOG_NAME = '게임 결과';
 const CHAT_MESSAGE = 'playwright-e2e-message';
+
+type RoundControlState =
+  'waiting' | 'stand-a' | 'stand-b' | 'settling' | 'finished';
 
 async function expectMatched(page: Page) {
   await expect(
@@ -62,52 +65,47 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
   const dialogB = pageB.getByRole('dialog', { name: RESULT_DIALOG_NAME });
   const standA = pageA.getByRole('button', { name: 'Stand' });
   const standB = pageB.getByRole('button', { name: 'Stand' });
-  let actionCount = 0;
 
-  while (actionCount < 2) {
-    const ready = {
-      state: 'waiting' as 'finished' | 'stand-a' | 'stand-b' | 'waiting',
-    };
+  const getRoundControlState = async (): Promise<RoundControlState> => {
+    if ((await dialogA.isVisible()) || (await dialogB.isVisible())) {
+      return 'finished';
+    }
+
+    const [standAVisible, standBVisible] = await Promise.all([
+      standA.isVisible(),
+      standB.isVisible(),
+    ]);
+
+    if (!standAVisible && !standBVisible) return 'settling';
+    if (standAVisible && (await standA.isEnabled())) return 'stand-a';
+    if (standBVisible && (await standB.isEnabled())) return 'stand-b';
+    return 'waiting';
+  };
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const ready = { state: 'waiting' as RoundControlState };
 
     await expect
       .poll(
         async () => {
-          if ((await dialogA.isVisible()) || (await dialogB.isVisible())) {
-            ready.state = 'finished';
-            return ready.state;
-          }
-          if ((await standA.isVisible()) && (await standA.isEnabled())) {
-            ready.state = 'stand-a';
-            return ready.state;
-          }
-          if ((await standB.isVisible()) && (await standB.isEnabled())) {
-            ready.state = 'stand-b';
-            return ready.state;
-          }
-          ready.state = 'waiting';
+          ready.state = await getRoundControlState();
           return ready.state;
         },
         { timeout: 40_000 },
       )
       .not.toBe('waiting');
 
-    if (ready.state === 'finished') break;
+    if (ready.state === 'finished' || ready.state === 'settling') break;
 
     const stand = ready.state === 'stand-a' ? standA : standB;
-    const otherStand = ready.state === 'stand-a' ? standB : standA;
 
     try {
-      await stand.click({ timeout: 3_000 });
-      actionCount += 1;
+      await stand.click({ timeout: 5_000 });
     } catch (error) {
-      if ((await dialogA.isVisible()) || (await dialogB.isVisible())) break;
+      if (!(error instanceof errors.TimeoutError)) throw error;
 
-      const selectedStandUnavailable =
-        !(await stand.isVisible()) || !(await stand.isEnabled());
-      const otherStandReady =
-        (await otherStand.isVisible()) && (await otherStand.isEnabled());
-
-      if (!selectedStandUnavailable && !otherStandReady) throw error;
+      const nextState = await getRoundControlState();
+      if (nextState === ready.state) throw error;
     }
   }
 
