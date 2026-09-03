@@ -1,5 +1,5 @@
 import type { Card } from '@blackjack/shared';
-import { useThree } from '@react-three/fiber';
+import { type ThreeEvent, useThree } from '@react-three/fiber';
 import gsap from 'gsap';
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 import type { Group } from 'three';
@@ -21,9 +21,12 @@ import {
 
 type Vector3Tuple = [number, number, number];
 
+const HOVER_LIFT = 0.12;
+
 type DealtCard3DProps = {
   delay: number;
   initialDealSound?: GameSound;
+  interactive?: boolean;
   onInitialDealComplete?: () => void;
   readinessUrls?: readonly string[];
   startPosition: Vector3Tuple;
@@ -41,22 +44,28 @@ export function DealtCard3D({
   hidden = false,
   delay,
   initialDealSound,
+  interactive = false,
   onInitialDealComplete,
   readinessUrls,
   startPosition,
   targetPosition,
   targetRotation = [0, 0, 0],
 }: DealtCard3DProps) {
-  const groupRef = useRef<Group>(null);
+  const dealGroupRef = useRef<Group>(null);
+  const interactionGroupRef = useRef<Group>(null);
+  const interactionTweenRef = useRef<ReturnType<typeof gsap.to> | null>(null);
   const previousTargetRef = useRef<Vector3Tuple | null>(null);
   const initialDealCompletedRef = useRef(false);
+  const dealInProgressRef = useRef(true);
   const initialDealSoundPlayedRef = useRef(false);
+  const hoverActiveRef = useRef(false);
   const [preparedReadinessKey, setPreparedReadinessKey] = useState<
     string | null
   >(null);
   const initialDealCompleteCallbackRef = useRef(onInitialDealComplete);
   initialDealCompleteCallbackRef.current = onInitialDealComplete;
   const invalidate = useThree((state) => state.invalidate);
+  const canvas = useThree((state) => state.gl.domElement);
   const [startX, startY, startZ] = startPosition;
   const [targetX, targetY, targetZ] = targetPosition;
   const [rotationX, rotationY, rotationZ] = targetRotation;
@@ -73,7 +82,7 @@ export function DealtCard3D({
     areCardTexturesReady(textureUrls) || preparedReadinessKey === readinessKey;
 
   useLayoutEffect(() => {
-    const group = groupRef.current;
+    const group = dealGroupRef.current;
     if (!group) return;
 
     const previousTarget = previousTargetRef.current;
@@ -109,6 +118,14 @@ export function DealtCard3D({
     }
 
     previousTargetRef.current = [targetX, targetY, targetZ];
+    dealInProgressRef.current = true;
+    if (hoverActiveRef.current) {
+      hoverActiveRef.current = false;
+      canvas.style.cursor = '';
+      interactionTweenRef.current?.kill();
+      interactionGroupRef.current?.position.set(0, 0, 0);
+      invalidate();
+    }
     if (
       !initialDealCompletedRef.current &&
       !initialDealSoundPlayedRef.current &&
@@ -133,6 +150,7 @@ export function DealtCard3D({
       onComplete: () => {
         const isInitialDeal = !initialDealCompletedRef.current;
         initialDealCompletedRef.current = true;
+        dealInProgressRef.current = false;
         invalidate();
         if (isInitialDeal) {
           if (
@@ -167,6 +185,7 @@ export function DealtCard3D({
     delay,
     initialDealSound,
     invalidate,
+    canvas,
     startX,
     startY,
     startZ,
@@ -180,12 +199,76 @@ export function DealtCard3D({
     texturesReady,
   ]);
 
+  useLayoutEffect(() => {
+    return () => {
+      interactionTweenRef.current?.kill();
+      interactionGroupRef.current?.position.set(0, 0, 0);
+      if (hoverActiveRef.current) canvas.style.cursor = '';
+      hoverActiveRef.current = false;
+      invalidate();
+    };
+  }, [canvas, invalidate]);
+
+  const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
+    if (
+      event.pointerType !== 'mouse' ||
+      !initialDealCompletedRef.current ||
+      dealInProgressRef.current
+    ) {
+      return;
+    }
+
+    event.stopPropagation();
+    if (hoverActiveRef.current) return;
+
+    const interactionGroup = interactionGroupRef.current;
+    if (!interactionGroup) return;
+
+    hoverActiveRef.current = true;
+    canvas.style.cursor = 'pointer';
+    interactionTweenRef.current?.kill();
+    interactionTweenRef.current = gsap.to(interactionGroup.position, {
+      y: HOVER_LIFT,
+      duration: 0.16,
+      ease: 'power2.out',
+      overwrite: true,
+      onUpdate: invalidate,
+    });
+  };
+
+  const handlePointerOut = (event: ThreeEvent<PointerEvent>) => {
+    if (!hoverActiveRef.current) return;
+
+    event.stopPropagation();
+    hoverActiveRef.current = false;
+    canvas.style.cursor = '';
+
+    const interactionGroup = interactionGroupRef.current;
+    if (!interactionGroup) return;
+
+    interactionTweenRef.current?.kill();
+    interactionTweenRef.current = gsap.to(interactionGroup.position, {
+      y: 0,
+      duration: 0.2,
+      ease: 'power2.out',
+      overwrite: true,
+      onUpdate: invalidate,
+    });
+  };
+
   return (
-    <group ref={groupRef}>
-      {texturesReady
-        ? (children ??
-          (hidden ? <Card3D hidden /> : card ? <Card3D card={card} /> : null))
-        : null}
+    <group ref={dealGroupRef}>
+      <group
+        onPointerCancel={interactive ? handlePointerOut : undefined}
+        onPointerOut={interactive ? handlePointerOut : undefined}
+        onPointerOver={interactive ? handlePointerOver : undefined}
+        ref={interactionGroupRef}
+      >
+        {texturesReady
+          ? (children ??
+            (hidden ? <Card3D hidden /> : card ? <Card3D card={card} /> : null))
+          : null}
+      </group>
     </group>
   );
 }
