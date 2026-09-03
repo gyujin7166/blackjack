@@ -62,29 +62,53 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
   const dialogB = pageB.getByRole('dialog', { name: RESULT_DIALOG_NAME });
   const standA = pageA.getByRole('button', { name: 'Stand' });
   const standB = pageB.getByRole('button', { name: 'Stand' });
+  let actionCount = 0;
 
-  for (let turn = 0; turn < 2; turn += 1) {
+  while (actionCount < 2) {
+    const ready = {
+      state: 'waiting' as 'finished' | 'stand-a' | 'stand-b' | 'waiting',
+    };
+
     await expect
       .poll(
         async () => {
           if ((await dialogA.isVisible()) || (await dialogB.isVisible())) {
-            return 'finished';
+            ready.state = 'finished';
+            return ready.state;
           }
           if ((await standA.isVisible()) && (await standA.isEnabled())) {
-            await standA.click();
-            return 'acted';
+            ready.state = 'stand-a';
+            return ready.state;
           }
           if ((await standB.isVisible()) && (await standB.isEnabled())) {
-            await standB.click();
-            return 'acted';
+            ready.state = 'stand-b';
+            return ready.state;
           }
-          return 'waiting';
+          ready.state = 'waiting';
+          return ready.state;
         },
         { timeout: 40_000 },
       )
       .not.toBe('waiting');
 
-    if ((await dialogA.isVisible()) || (await dialogB.isVisible())) break;
+    if (ready.state === 'finished') break;
+
+    const stand = ready.state === 'stand-a' ? standA : standB;
+    const otherStand = ready.state === 'stand-a' ? standB : standA;
+
+    try {
+      await stand.click({ timeout: 3_000 });
+      actionCount += 1;
+    } catch (error) {
+      if ((await dialogA.isVisible()) || (await dialogB.isVisible())) break;
+
+      const selectedStandUnavailable =
+        !(await stand.isVisible()) || !(await stand.isEnabled());
+      const otherStandReady =
+        (await otherStand.isVisible()) && (await otherStand.isEnabled());
+
+      if (!selectedStandUnavailable && !otherStandReady) throw error;
+    }
   }
 
   await expect(dialogA).toBeVisible({ timeout: 20_000 });
