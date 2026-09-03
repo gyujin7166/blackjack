@@ -1,10 +1,39 @@
-import { errors, expect, test, type Page } from '@playwright/test';
+import {
+  errors,
+  expect,
+  test,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 
 const RESULT_DIALOG_NAME = '게임 결과';
 const CHAT_MESSAGE = 'playwright-e2e-message';
 
 type RoundControlState =
   'waiting' | 'stand-a' | 'stand-b' | 'settling' | 'finished';
+
+interface StandSnapshot {
+  enabled: boolean;
+  visible: boolean;
+}
+
+async function getStandSnapshot(stand: Locator): Promise<StandSnapshot> {
+  return stand.evaluateAll((elements) => {
+    const button = elements[0];
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return { enabled: false, visible: false };
+    }
+
+    const style = window.getComputedStyle(button);
+    const visible =
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      button.getClientRects().length > 0;
+
+    return { enabled: visible && !button.disabled, visible };
+  });
+}
 
 async function expectMatched(page: Page) {
   await expect(
@@ -71,14 +100,14 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
       return 'finished';
     }
 
-    const [standAVisible, standBVisible] = await Promise.all([
-      standA.isVisible(),
-      standB.isVisible(),
+    const [standAState, standBState] = await Promise.all([
+      getStandSnapshot(standA),
+      getStandSnapshot(standB),
     ]);
 
-    if (!standAVisible && !standBVisible) return 'settling';
-    if (standAVisible && (await standA.isEnabled())) return 'stand-a';
-    if (standBVisible && (await standB.isEnabled())) return 'stand-b';
+    if (!standAState.visible && !standBState.visible) return 'settling';
+    if (standAState.enabled) return 'stand-a';
+    if (standBState.enabled) return 'stand-b';
     return 'waiting';
   };
 
