@@ -1,16 +1,12 @@
-import {
-  errors,
-  expect,
-  test,
-  type Locator,
-  type Page,
-} from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 const RESULT_DIALOG_NAME = '게임 결과';
 const CHAT_MESSAGE = 'playwright-e2e-message';
 
 type RoundControlState =
   'waiting' | 'stand-a' | 'stand-b' | 'settling' | 'finished';
+
+type StandActionResult = 'clicked' | 'not-actionable';
 
 interface StandSnapshot {
   enabled: boolean;
@@ -32,6 +28,31 @@ async function getStandSnapshot(stand: Locator): Promise<StandSnapshot> {
       button.getClientRects().length > 0;
 
     return { enabled: visible && !button.disabled, visible };
+  });
+}
+
+async function triggerStandIfActionable(
+  stand: Locator,
+): Promise<StandActionResult> {
+  return stand.evaluateAll((elements) => {
+    const button = elements[0];
+
+    if (!(button instanceof HTMLButtonElement)) {
+      return 'not-actionable';
+    }
+
+    const style = window.getComputedStyle(button);
+    const visible =
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      button.getClientRects().length > 0;
+
+    if (!visible || button.disabled) {
+      return 'not-actionable';
+    }
+
+    button.click();
+    return 'clicked';
   });
 }
 
@@ -127,15 +148,14 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
     if (ready.state === 'finished' || ready.state === 'settling') break;
 
     const stand = ready.state === 'stand-a' ? standA : standB;
+    const actionState = ready.state;
+    const actionResult = await triggerStandIfActionable(stand);
 
-    try {
-      await stand.click({ timeout: 5_000 });
-    } catch (error) {
-      if (!(error instanceof errors.TimeoutError)) throw error;
+    if (actionResult === 'not-actionable') continue;
 
-      const nextState = await getRoundControlState();
-      if (nextState === ready.state) throw error;
-    }
+    await expect
+      .poll(getRoundControlState, { timeout: 40_000 })
+      .not.toBe(actionState);
   }
 
   await expect(dialogA).toBeVisible({ timeout: 20_000 });
