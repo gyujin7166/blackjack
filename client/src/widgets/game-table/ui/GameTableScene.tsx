@@ -43,6 +43,7 @@ type Vector3Tuple = [number, number, number];
 const DEAL_ORIGIN: Vector3Tuple = [-4.2, 0.64, -2.14];
 const MOBILE_DEAL_ORIGIN: Vector3Tuple = [1.55, 0.64, -1.25];
 const DEAL_STAGGER_SECONDS = 0.12;
+const DEALER_PRESENTATION_FAILSAFE_MS = 5_000;
 const DECK_CARD_OFFSETS: Vector3Tuple[] = [
   [-0.056, -0.104, -0.056],
   [-0.042, -0.078, -0.042],
@@ -476,6 +477,25 @@ function GameTableRound({
         : 'revealing',
     );
   }, [gameState.dealer.hand, gameState.phase]);
+
+  useEffect(() => {
+    if (
+      gameState.phase !== 'finished' ||
+      dealerStage === 'playing' ||
+      dealerStage === 'complete'
+    ) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setVisibleDrawCount(dealerPlan.drawIndices.length);
+      setDealerStage('complete');
+    }, DEALER_PRESENTATION_FAILSAFE_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [dealerPlan.drawIndices.length, dealerStage, gameState.phase]);
 
   const handleHoleCardDealComplete = useCallback(() => {
     initialDealerDealCompleteRef.current = true;

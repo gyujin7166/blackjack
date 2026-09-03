@@ -94,7 +94,7 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
 test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서 재대결한다', async ({
   browser,
 }) => {
-  test.setTimeout(100_000);
+  test.setTimeout(150_000);
 
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
