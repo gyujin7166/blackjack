@@ -18,8 +18,8 @@ type Card3DProps = {
   rotation?: Vector3Tuple;
 } & ({ card: Card; hidden?: false } | { card?: never; hidden: true });
 
-const CARD_WIDTH = 1.105;
-const CARD_HEIGHT = 1.5325;
+export const CARD_WIDTH = 1.105;
+export const CARD_HEIGHT = 1.5325;
 const CARD_CORNER_RADIUS = 0.085;
 
 const CARD_SURFACE_HEIGHT = 1.525;
@@ -61,15 +61,15 @@ const CARD_SHAPE = createRoundedRectShape(
   CARD_CORNER_RADIUS,
 );
 
-const CARD_BODY_GEOMETRY = new ExtrudeGeometry(
+export const CARD_BODY_GEOMETRY = new ExtrudeGeometry(
   CARD_SHAPE,
   CARD_EXTRUDE_OPTIONS,
 );
-const CARD_SURFACE_GEOMETRY = new PlaneGeometry(
+export const CARD_SURFACE_GEOMETRY = new PlaneGeometry(
   CARD_SURFACE_WIDTH,
   CARD_SURFACE_HEIGHT,
 );
-const CARD_BODY_MATERIAL = new MeshPhysicalMaterial({
+export const CARD_BODY_MATERIAL = new MeshPhysicalMaterial({
   clearcoat: 0.12,
   clearcoatRoughness: 0.62,
   color: '#f8f3e9',

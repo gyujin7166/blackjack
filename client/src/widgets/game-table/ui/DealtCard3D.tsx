@@ -2,7 +2,8 @@ import type { Card } from '@blackjack/shared';
 import { type ThreeEvent, useThree } from '@react-three/fiber';
 import gsap from 'gsap';
 import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
-import type { Group } from 'three';
+import { Vector3 } from 'three';
+import type { Camera, Group } from 'three';
 
 import {
   CARD_BACK_ASSET_URL,
@@ -12,7 +13,11 @@ import {
   areCardTexturesReady,
   prepareCardTextures,
 } from '../../../entities/card/lib/cardTexture';
-import { Card3D } from '../../../entities/card/ui/Card3D';
+import {
+  CARD_HEIGHT,
+  CARD_WIDTH,
+  Card3D,
+} from '../../../entities/card/ui/Card3D';
 import {
   getGameSoundTrigger,
   playGameSound,
@@ -23,11 +28,67 @@ type Vector3Tuple = [number, number, number];
 
 const HOVER_LIFT = 0.12;
 
+export interface CardScreenBounds {
+  height: number;
+  width: number;
+  x: number;
+  y: number;
+}
+
+export interface CardInspectionSource {
+  card: Card;
+  getCurrentBounds: () => CardScreenBounds | null;
+  id: string;
+  initialBounds: CardScreenBounds;
+}
+
+function getCardScreenBounds(
+  group: Group,
+  camera: Camera,
+  canvas: HTMLCanvasElement,
+): CardScreenBounds | null {
+  if (!group.parent) return null;
+
+  group.updateWorldMatrix(true, false);
+  const canvasBounds = canvas.getBoundingClientRect();
+  const corners = [
+    [-CARD_WIDTH / 2, 0, -CARD_HEIGHT / 2],
+    [CARD_WIDTH / 2, 0, -CARD_HEIGHT / 2],
+    [CARD_WIDTH / 2, 0, CARD_HEIGHT / 2],
+    [-CARD_WIDTH / 2, 0, CARD_HEIGHT / 2],
+  ] as const;
+  const projected = corners.map(([x, y, z]) => {
+    const point = new Vector3(x, y, z).applyMatrix4(group.matrixWorld);
+    point.project(camera);
+    return {
+      x: canvasBounds.left + ((point.x + 1) / 2) * canvasBounds.width,
+      y: canvasBounds.top + ((1 - point.y) / 2) * canvasBounds.height,
+    };
+  });
+  const xValues = projected.map((point) => point.x);
+  const yValues = projected.map((point) => point.y);
+  const left = Math.min(...xValues);
+  const right = Math.max(...xValues);
+  const top = Math.min(...yValues);
+  const bottom = Math.max(...yValues);
+
+  return {
+    height: bottom - top,
+    width: right - left,
+    x: left,
+    y: top,
+  };
+}
+
 type DealtCard3DProps = {
   delay: number;
   initialDealSound?: GameSound;
+  inspectionEnabled?: boolean;
+  inspectionHidden?: boolean;
+  inspectionId?: string;
   interactive?: boolean;
   onInitialDealComplete?: () => void;
+  onInspect?: (source: CardInspectionSource) => void;
   readinessUrls?: readonly string[];
   startPosition: Vector3Tuple;
   targetPosition: Vector3Tuple;
@@ -44,8 +105,12 @@ export function DealtCard3D({
   hidden = false,
   delay,
   initialDealSound,
+  inspectionEnabled = false,
+  inspectionHidden = false,
+  inspectionId,
   interactive = false,
   onInitialDealComplete,
+  onInspect,
   readinessUrls,
   startPosition,
   targetPosition,
@@ -66,6 +131,7 @@ export function DealtCard3D({
   initialDealCompleteCallbackRef.current = onInitialDealComplete;
   const invalidate = useThree((state) => state.invalidate);
   const canvas = useThree((state) => state.gl.domElement);
+  const camera = useThree((state) => state.camera);
   const [startX, startY, startZ] = startPosition;
   const [targetX, targetY, targetZ] = targetPosition;
   const [rotationX, rotationY, rotationZ] = targetRotation;
@@ -209,9 +275,20 @@ export function DealtCard3D({
     };
   }, [canvas, invalidate]);
 
+  useLayoutEffect(() => {
+    if (!inspectionHidden) return;
+
+    interactionTweenRef.current?.kill();
+    interactionGroupRef.current?.position.set(0, 0, 0);
+    if (hoverActiveRef.current) canvas.style.cursor = '';
+    hoverActiveRef.current = false;
+    invalidate();
+  }, [canvas, inspectionHidden, invalidate]);
+
   const handlePointerOver = (event: ThreeEvent<PointerEvent>) => {
     if (
       event.pointerType !== 'mouse' ||
+      inspectionHidden ||
       !initialDealCompletedRef.current ||
       dealInProgressRef.current
     ) {
@@ -233,6 +310,34 @@ export function DealtCard3D({
       ease: 'power2.out',
       overwrite: true,
       onUpdate: invalidate,
+    });
+  };
+
+  const handleClick = (event: ThreeEvent<MouseEvent>) => {
+    if (
+      !card ||
+      !inspectionEnabled ||
+      inspectionHidden ||
+      !inspectionId ||
+      !onInspect ||
+      !initialDealCompletedRef.current
+    ) {
+      return;
+    }
+
+    const interactionGroup = interactionGroupRef.current;
+    if (!interactionGroup) return;
+
+    const initialBounds = getCardScreenBounds(interactionGroup, camera, canvas);
+    if (!initialBounds) return;
+
+    event.stopPropagation();
+    onInspect({
+      card,
+      getCurrentBounds: () =>
+        getCardScreenBounds(interactionGroup, camera, canvas),
+      id: inspectionId,
+      initialBounds,
     });
   };
 
@@ -259,10 +364,12 @@ export function DealtCard3D({
   return (
     <group ref={dealGroupRef}>
       <group
+        onClick={interactive ? handleClick : undefined}
         onPointerCancel={interactive ? handlePointerOut : undefined}
         onPointerOut={interactive ? handlePointerOut : undefined}
         onPointerOver={interactive ? handlePointerOver : undefined}
         ref={interactionGroupRef}
+        visible={!inspectionHidden}
       >
         {texturesReady
           ? (children ??

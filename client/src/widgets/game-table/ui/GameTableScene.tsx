@@ -20,13 +20,22 @@ import {
   CARD_BACK_ASSET_URL,
   getCardFaceAssetUrl,
 } from '../../../entities/card/lib/cardAsset';
+import {
+  areCardTexturesReady,
+  prepareCardTextures,
+} from '../../../entities/card/lib/cardTexture';
 import { Card3D } from '../../../entities/card/ui/Card3D';
 import {
   createDealerPresentationPlan,
   type DealerPresentationPlan,
 } from '../lib/dealerPresentation';
 import { DealerRevealCard3D } from './DealerRevealCard3D';
-import { DealtCard3D } from './DealtCard3D';
+import { CardInspectionOverlay } from './CardInspectionOverlay';
+import {
+  DealtCard3D,
+  type CardInspectionSource,
+  type CardScreenBounds,
+} from './DealtCard3D';
 import { GameTableHud, type GameTableHudProps } from './GameTableHud';
 
 interface GameTableSceneProps extends Omit<
@@ -44,6 +53,7 @@ const DEAL_ORIGIN: Vector3Tuple = [-4.2, 0.64, -2.14];
 const MOBILE_DEAL_ORIGIN: Vector3Tuple = [1.55, 0.64, -1.25];
 const DEAL_STAGGER_SECONDS = 0.12;
 const DEALER_PRESENTATION_FAILSAFE_MS = 5_000;
+const INITIAL_DEAL_CARD_COUNT = 6;
 const DECK_CARD_OFFSETS: Vector3Tuple[] = [
   [-0.056, -0.104, -0.056],
   [-0.042, -0.078, -0.042],
@@ -142,6 +152,21 @@ function createFeltTexture() {
 type DealerSequenceStage =
   'playing' | 'waiting-initial-deal' | 'revealing' | 'drawing' | 'complete';
 
+interface InspectionPresentation {
+  card: Card;
+  sourceBounds: CardScreenBounds;
+  sourceId: string;
+}
+
+function getPlayerCardSourceId(
+  animationRound: number,
+  owner: PlayerSeat,
+  index: number,
+  card: Card,
+) {
+  return `${animationRound}:${owner}:${index}:${card.suit}:${card.rank}`;
+}
+
 function FixedCamera() {
   const camera = useThree((state) => state.camera);
   const viewportWidth = useThree((state) => state.size.width);
@@ -164,7 +189,11 @@ function PlayerHand({
   owner,
   animationRound,
   initialDealReadinessUrls,
+  inspectionEnabled,
+  inspectedSourceId,
   interactive,
+  onInitialCardDealComplete,
+  onInspect,
   x,
   z,
 }: {
@@ -172,7 +201,11 @@ function PlayerHand({
   owner: PlayerSeat;
   animationRound: number;
   initialDealReadinessUrls: readonly string[];
+  inspectionEnabled: boolean;
+  inspectedSourceId: string | null;
   interactive: boolean;
+  onInitialCardDealComplete: (id: string) => void;
+  onInspect: (source: CardInspectionSource) => void;
   x: number;
   z: number;
 }) {
@@ -189,6 +222,12 @@ function PlayerHand({
       {cards.map((card, index) => {
         const centerOffset = index - (cards.length - 1) / 2;
         const rotationY = Math.max(-0.2, Math.min(0.2, -centerOffset * 0.18));
+        const sourceId = getPlayerCardSourceId(
+          animationRound,
+          owner,
+          index,
+          card,
+        );
         return (
           <DealtCard3D
             card={card}
@@ -196,8 +235,17 @@ function PlayerHand({
               index < 2 ? (index * 3 + ownerOrder) * DEAL_STAGGER_SECONDS : 0
             }
             initialDealSound={index < 2 ? 'initialDeal' : 'draw'}
+            inspectionEnabled={interactive && inspectionEnabled}
+            inspectionHidden={inspectedSourceId === sourceId}
+            inspectionId={sourceId}
             interactive={interactive}
             key={`${animationRound}:${owner}:${index}`}
+            onInitialDealComplete={
+              index < 2
+                ? () => onInitialCardDealComplete(`${owner}:${index}`)
+                : undefined
+            }
+            onInspect={interactive ? onInspect : undefined}
             readinessUrls={index < 2 ? initialDealReadinessUrls : undefined}
             startPosition={dealOrigin}
             targetPosition={[
@@ -219,6 +267,7 @@ function DealerHand({
   drawIndices,
   initialDealReadinessUrls,
   onDrawComplete,
+  onInitialCardDealComplete,
   onHoleCardDealComplete,
   onHoleCardRevealComplete,
   revealHoleCard,
@@ -228,6 +277,7 @@ function DealerHand({
   drawIndices: number[];
   initialDealReadinessUrls: readonly string[];
   onDrawComplete: () => void;
+  onInitialCardDealComplete: (id: string) => void;
   onHoleCardDealComplete: () => void;
   onHoleCardRevealComplete: () => void;
   revealHoleCard: boolean;
@@ -259,6 +309,9 @@ function DealerHand({
               delay={2 * DEAL_STAGGER_SECONDS}
               initialDealSound="initialDeal"
               key={`${animationRound}:dealer:0`}
+              onInitialDealComplete={() =>
+                onInitialCardDealComplete('dealer:0')
+              }
               readinessUrls={initialDealReadinessUrls}
               startPosition={dealOrigin}
               targetPosition={position}
@@ -274,7 +327,10 @@ function DealerHand({
               dealReadinessUrls={initialDealReadinessUrls}
               initialDealSound="initialDeal"
               key={`${animationRound}:dealer:1`}
-              onInitialDealComplete={onHoleCardDealComplete}
+              onInitialDealComplete={() => {
+                onInitialCardDealComplete('dealer:1');
+                onHoleCardDealComplete();
+              }}
               onRevealComplete={onHoleCardRevealComplete}
               reveal={revealHoleCard}
               startPosition={dealOrigin}
@@ -454,8 +510,116 @@ function GameTableRound({
     initialPlan.shouldRevealHoleCard ? 'waiting-initial-deal' : 'playing',
   );
   const [visibleDrawCount, setVisibleDrawCount] = useState(0);
+  const [initialDealComplete, setInitialDealComplete] = useState(false);
+  const [inspection, setInspection] = useState<InspectionPresentation | null>(
+    null,
+  );
   const previousPhaseRef = useRef<GamePhase>(gameState.phase);
   const initialDealerDealCompleteRef = useRef(false);
+  const initialDealCompletionsRef = useRef(new Set<string>());
+  const inspectionSourceRef = useRef<CardInspectionSource | null>(null);
+
+  const handleInitialCardDealComplete = useCallback((id: string) => {
+    const completions = initialDealCompletionsRef.current;
+    if (completions.has(id)) return;
+
+    completions.add(id);
+    if (completions.size >= INITIAL_DEAL_CARD_COUNT) {
+      setInitialDealComplete(true);
+    }
+  }, []);
+
+  const handleInspect = useCallback(
+    (source: CardInspectionSource) => {
+      if (!initialDealComplete || inspectionSourceRef.current) return;
+
+      inspectionSourceRef.current = source;
+      const textureUrls = [
+        getCardFaceAssetUrl(source.card),
+        CARD_BACK_ASSET_URL,
+      ];
+      const openInspection = () => {
+        if (
+          inspectionSourceRef.current !== source ||
+          !source.getCurrentBounds()
+        ) {
+          if (inspectionSourceRef.current === source) {
+            inspectionSourceRef.current = null;
+          }
+          return;
+        }
+
+        setInspection({
+          card: source.card,
+          sourceBounds: source.initialBounds,
+          sourceId: source.id,
+        });
+      };
+
+      if (areCardTexturesReady(textureUrls)) {
+        openInspection();
+        return;
+      }
+
+      void prepareCardTextures(textureUrls).then((failures) => {
+        if (failures.length > 0) {
+          failures.forEach(({ error, url }) => {
+            console.error(
+              `Failed to prepare inspection texture: ${url}`,
+              error,
+            );
+          });
+          if (inspectionSourceRef.current === source) {
+            inspectionSourceRef.current = null;
+          }
+          return;
+        }
+
+        openInspection();
+      });
+    },
+    [initialDealComplete],
+  );
+
+  const handleInspectionClosed = useCallback(() => {
+    const sourceId = inspectionSourceRef.current?.id;
+    if (!sourceId) return;
+
+    inspectionSourceRef.current = null;
+    setInspection((current) =>
+      current?.sourceId === sourceId ? null : current,
+    );
+  }, []);
+
+  const selfHand = gameState[selfSeat].hand;
+
+  useEffect(() => {
+    if (!inspection) return;
+
+    const source = inspectionSourceRef.current;
+    const sourceStillExists = selfHand.some(
+      (card, index) =>
+        getPlayerCardSourceId(animationRound, selfSeat, index, card) ===
+        inspection.sourceId,
+    );
+    if (
+      source?.id === inspection.sourceId &&
+      sourceStillExists &&
+      source.getCurrentBounds()
+    ) {
+      return;
+    }
+
+    inspectionSourceRef.current = null;
+    setInspection(null);
+  }, [animationRound, inspection, selfHand, selfSeat]);
+
+  useEffect(
+    () => () => {
+      inspectionSourceRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     const plan = createDealerPresentationPlan({
@@ -588,7 +752,11 @@ function GameTableRound({
           animationRound={animationRound}
           cards={gameState.player1.hand}
           initialDealReadinessUrls={initialDealReadinessUrls}
+          inspectionEnabled={initialDealComplete}
+          inspectedSourceId={inspection?.sourceId ?? null}
           interactive={selfSeat === 'player1'}
+          onInitialCardDealComplete={handleInitialCardDealComplete}
+          onInspect={handleInspect}
           owner="player1"
           x={player1X}
           z={1.82}
@@ -597,7 +765,11 @@ function GameTableRound({
           animationRound={animationRound}
           cards={gameState.player2.hand}
           initialDealReadinessUrls={initialDealReadinessUrls}
+          inspectionEnabled={initialDealComplete}
+          inspectedSourceId={inspection?.sourceId ?? null}
           interactive={selfSeat === 'player2'}
+          onInitialCardDealComplete={handleInitialCardDealComplete}
+          onInspect={handleInspect}
           owner="player2"
           x={player2X}
           z={1.82}
@@ -608,6 +780,7 @@ function GameTableRound({
           drawIndices={visibleDrawIndices}
           initialDealReadinessUrls={initialDealReadinessUrls}
           onDrawComplete={handleDealerDrawComplete}
+          onInitialCardDealComplete={handleInitialCardDealComplete}
           onHoleCardDealComplete={handleHoleCardDealComplete}
           onHoleCardRevealComplete={handleHoleCardRevealComplete}
           revealHoleCard={revealHoleCard}
@@ -620,6 +793,15 @@ function GameTableRound({
         selfSeat={selfSeat}
         {...hudProps}
       />
+      {inspection && inspectionSourceRef.current ? (
+        <CardInspectionOverlay
+          card={inspection.card}
+          closeRequested={gameState.phase === 'finished'}
+          getSourceBounds={inspectionSourceRef.current.getCurrentBounds}
+          onClosed={handleInspectionClosed}
+          sourceBounds={inspection.sourceBounds}
+        />
+      ) : null}
     </section>
   );
 }
