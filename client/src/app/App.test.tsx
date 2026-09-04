@@ -53,6 +53,7 @@ const { socketMock, handlers, gameTableSceneMock } = vi.hoisted(() => {
   };
   return { socketMock, handlers, gameTableSceneMock: vi.fn() };
 });
+const prepareGameSoundsMock = vi.hoisted(() => vi.fn());
 
 type GameTableSceneTestProps = Omit<
   GameTableHudProps,
@@ -60,6 +61,9 @@ type GameTableSceneTestProps = Omit<
 > & { animationRound: number };
 
 vi.mock('../shared/api/socket', () => ({ socket: socketMock }));
+vi.mock('../widgets/game-table/lib/gameSounds', () => ({
+  prepareGameSounds: prepareGameSoundsMock,
+}));
 vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
   const { GameTableHud } =
     await import('../widgets/game-table/ui/GameTableHud');
@@ -230,6 +234,7 @@ describe('matchmaking', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '게임 시작' }));
 
+    expect(prepareGameSoundsMock).toHaveBeenCalledTimes(1);
     expect(socketMock.emit).toHaveBeenCalledWith('matchmaking:join');
     expect(
       screen.getByRole('button', { name: '상대 찾는 중...' }),
