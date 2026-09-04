@@ -112,22 +112,41 @@ describe('GameTableHud', () => {
     expect(screen.getByText('상대 턴 남은 시간: 17초')).toBeVisible();
   });
 
-  it('renders canonical chat labels and forwards chat input changes', () => {
-    const hudProps = props({
-      chatMessages: [
-        { roomId: 'game:hud-test', sender: 'player1', text: '안녕하세요' },
-        { roomId: 'game:hud-test', sender: 'player2', text: '반갑습니다' },
-      ],
-    });
-    render(<GameTableHud {...hudProps} />);
+  it.each(['compact', 'portrait'] as const)(
+    'opens and closes the %s chat drawer with canonical labels',
+    (layoutMode) => {
+      const hudProps = props({
+        chatMessages: [
+          { roomId: 'game:hud-test', sender: 'player1', text: '안녕하세요' },
+          { roomId: 'game:hud-test', sender: 'player2', text: '반갑습니다' },
+        ],
+      });
+      render(<GameTableHud {...hudProps} layoutMode={layoutMode} />);
 
-    expect(screen.getByText('Self: 안녕하세요')).toBeVisible();
-    expect(screen.getByText('Opponent: 반갑습니다')).toBeVisible();
-    fireEvent.change(screen.getByRole('textbox', { name: '메시지' }), {
-      target: { value: '새 메시지' },
-    });
-    expect(hudProps.onChatInputChange).toHaveBeenCalledWith('새 메시지');
-  });
+      const toggle = screen.getByRole('button', { name: '채팅 열기' });
+      expect(toggle).toHaveAttribute('aria-expanded', 'false');
+      expect(
+        screen.queryByRole('textbox', { name: '메시지' }),
+      ).not.toBeInTheDocument();
+      fireEvent.click(toggle);
+
+      expect(screen.getByRole('button', { name: '채팅 닫기' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      expect(screen.getByText('Self: 안녕하세요')).toBeVisible();
+      expect(screen.getByText('Opponent: 반갑습니다')).toBeVisible();
+      fireEvent.change(screen.getByRole('textbox', { name: '메시지' }), {
+        target: { value: '새 메시지' },
+      });
+      expect(hudProps.onChatInputChange).toHaveBeenCalledWith('새 메시지');
+
+      fireEvent.click(screen.getByRole('button', { name: '채팅 패널 닫기' }));
+      expect(
+        screen.queryByRole('textbox', { name: '메시지' }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it.each([
     ['win', '승리'],

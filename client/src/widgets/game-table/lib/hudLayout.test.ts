@@ -1,34 +1,70 @@
 import { describe, expect, it } from 'vitest';
 
-import { calculateHudLayout } from './hudLayout';
+import {
+  GAME_TABLE_WIDE_MIN_HEIGHT,
+  GAME_TABLE_WIDE_MIN_WIDTH,
+  getGameTableLayoutMode,
+} from './hudLayout';
 
-describe('calculateHudLayout', () => {
+describe('getGameTableLayoutMode', () => {
   it.each([
-    [1280, 720, 2 / 3, 0, 0],
-    [1920, 1080, 1, 0, 0],
-    [2560, 1440, 4 / 3, 0, 0],
-    [3840, 2160, 2, 0, 0],
-    [1920, 1200, 1, 0, 60],
-    [1440, 1080, 0.75, 0, 135],
-    [2560, 1080, 1, 320, 0],
-  ])(
-    'contains a 1920x1080 layer in %sx%s',
-    (width, height, scale, offsetX, offsetY) => {
-      expect(calculateHudLayout(width, height)).toMatchObject({
-        isPortrait: false,
-        offsetX,
-        offsetY,
-      });
-      expect(calculateHudLayout(width, height).scale).toBeCloseTo(scale);
-    },
-  );
+    [1920, 1080, 'wide'],
+    [1600, 900, 'wide'],
+    [1366, 768, 'compact'],
+    [1280, 720, 'compact'],
+    [1024, 768, 'compact'],
+    [900, 900, 'compact'],
+    [844, 390, 'compact'],
+    [390, 844, 'portrait'],
+  ] as const)('classifies %sx%s as %s', (width, height, mode) => {
+    expect(getGameTableLayoutMode(width, height)).toBe(mode);
+  });
 
-  it('keeps portrait HUD unscaled', () => {
-    expect(calculateHudLayout(390, 844)).toEqual({
-      isPortrait: true,
-      offsetX: 0,
-      offsetY: 0,
-      scale: 1,
-    });
+  it('has an explicit wide width boundary', () => {
+    expect(
+      getGameTableLayoutMode(
+        GAME_TABLE_WIDE_MIN_WIDTH - 1,
+        GAME_TABLE_WIDE_MIN_HEIGHT,
+      ),
+    ).toBe('compact');
+    expect(
+      getGameTableLayoutMode(
+        GAME_TABLE_WIDE_MIN_WIDTH,
+        GAME_TABLE_WIDE_MIN_HEIGHT,
+      ),
+    ).toBe('wide');
+    expect(
+      getGameTableLayoutMode(
+        GAME_TABLE_WIDE_MIN_WIDTH + 1,
+        GAME_TABLE_WIDE_MIN_HEIGHT,
+      ),
+    ).toBe('wide');
+  });
+
+  it('has an explicit wide height boundary', () => {
+    expect(
+      getGameTableLayoutMode(
+        GAME_TABLE_WIDE_MIN_WIDTH,
+        GAME_TABLE_WIDE_MIN_HEIGHT - 1,
+      ),
+    ).toBe('compact');
+    expect(
+      getGameTableLayoutMode(
+        GAME_TABLE_WIDE_MIN_WIDTH,
+        GAME_TABLE_WIDE_MIN_HEIGHT,
+      ),
+    ).toBe('wide');
+    expect(
+      getGameTableLayoutMode(
+        GAME_TABLE_WIDE_MIN_WIDTH,
+        GAME_TABLE_WIDE_MIN_HEIGHT + 1,
+      ),
+    ).toBe('wide');
+  });
+
+  it('keeps the portrait aspect-ratio boundary explicit', () => {
+    expect(getGameTableLayoutMode(799, 1000)).toBe('portrait');
+    expect(getGameTableLayoutMode(800, 1000)).toBe('compact');
+    expect(getGameTableLayoutMode(801, 1000)).toBe('compact');
   });
 });

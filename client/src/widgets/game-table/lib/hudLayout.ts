@@ -1,30 +1,20 @@
-export const HUD_REFERENCE_WIDTH = 1920;
-export const HUD_REFERENCE_HEIGHT = 1080;
+export type GameTableLayoutMode = 'wide' | 'compact' | 'portrait';
 
-export interface HudLayout {
-  isPortrait: boolean;
-  offsetX: number;
-  offsetY: number;
-  scale: number;
-}
+export const GAME_TABLE_PORTRAIT_ASPECT_RATIO = 0.8;
+export const GAME_TABLE_WIDE_MIN_HEIGHT = 700;
+export const GAME_TABLE_WIDE_MIN_WIDTH = 1440;
 
-export function calculateHudLayout(width: number, height: number): HudLayout {
-  if (width <= 0 || height <= 0) {
-    return { isPortrait: false, offsetX: 0, offsetY: 0, scale: 1 };
+export function getGameTableLayoutMode(
+  width: number,
+  height: number,
+): GameTableLayoutMode {
+  if (width <= 0 || height <= 0) return 'wide';
+  if (width / height < GAME_TABLE_PORTRAIT_ASPECT_RATIO) return 'portrait';
+  if (
+    width >= GAME_TABLE_WIDE_MIN_WIDTH &&
+    height >= GAME_TABLE_WIDE_MIN_HEIGHT
+  ) {
+    return 'wide';
   }
-
-  if (width / height < 0.8) {
-    return { isPortrait: true, offsetX: 0, offsetY: 0, scale: 1 };
-  }
-
-  const scale = Math.min(
-    width / HUD_REFERENCE_WIDTH,
-    height / HUD_REFERENCE_HEIGHT,
-  );
-  return {
-    isPortrait: false,
-    offsetX: (width - HUD_REFERENCE_WIDTH * scale) / 2,
-    offsetY: (height - HUD_REFERENCE_HEIGHT * scale) / 2,
-    scale,
-  };
+  return 'compact';
 }
