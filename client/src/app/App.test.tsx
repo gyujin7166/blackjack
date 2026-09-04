@@ -65,6 +65,8 @@ vi.mock('../widgets/game-table/lib/gameSounds', () => ({
   prepareGameSounds: prepareGameSoundsMock,
 }));
 vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
+  const { GameTableChatPanel } =
+    await import('../widgets/game-table/ui/GameTableChatPanel');
   const { GameTableHud } =
     await import('../widgets/game-table/ui/GameTableHud');
 
@@ -74,6 +76,17 @@ vi.mock('../widgets/game-table/ui/GameTableScene', async () => {
       return (
         <div data-testid="game-table-scene">
           <GameTableHud {...props} dealerSequenceComplete />
+          {props.gameState.phase !== 'finished' && (
+            <GameTableChatPanel
+              chatInput={props.chatInput}
+              chatMessages={props.chatMessages}
+              id="game-table-wide-chat"
+              onChatInputChange={props.onChatInputChange}
+              onChatSubmit={props.onChatSubmit}
+              selfSeat={props.selfSeat}
+              variant="wide"
+            />
+          )}
         </div>
       );
     },
