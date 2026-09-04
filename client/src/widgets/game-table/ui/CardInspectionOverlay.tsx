@@ -26,6 +26,10 @@ import type { CardScreenBounds } from './DealtCard3D';
 
 type InspectionStage = 'opening' | 'inspecting' | 'closing';
 
+const INSPECTION_BODY_Z_SCALE = 0.5;
+const INSPECTION_BODY_CENTER_Z = -0.01375;
+const INSPECTION_SURFACE_Z = 0.0205;
+
 interface CardInspectionOverlayProps {
   card: Card;
   closeRequested: boolean;
@@ -80,7 +84,10 @@ function InspectionCardModel({ card }: { card: Card }) {
 
   return (
     <group>
-      <mesh position={[0, 0, -0.021]} scale={[1, 1, 0.5]}>
+      <mesh
+        position={[0, 0, INSPECTION_BODY_CENTER_Z]}
+        scale={[1, 1, INSPECTION_BODY_Z_SCALE]}
+      >
         <primitive
           attach="geometry"
           dispose={null}
@@ -93,7 +100,7 @@ function InspectionCardModel({ card }: { card: Card }) {
         />
       </mesh>
 
-      <mesh position={[0, 0, 0.022]}>
+      <mesh position={[0, 0, INSPECTION_SURFACE_Z]}>
         <primitive
           attach="geometry"
           dispose={null}
@@ -111,7 +118,7 @@ function InspectionCardModel({ card }: { card: Card }) {
         />
       </mesh>
 
-      <mesh position={[0, 0, -0.037]} rotation={[0, Math.PI, 0]}>
+      <mesh position={[0, 0, -INSPECTION_SURFACE_Z]} rotation={[0, Math.PI, 0]}>
         <primitive
           attach="geometry"
           dispose={null}
