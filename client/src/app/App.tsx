@@ -12,6 +12,7 @@ import { CHAT_MESSAGE_MAX_LENGTH } from '@blackjack/shared';
 import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 import { socket } from '../shared/api/socket';
+import { prepareGameSounds } from '../widgets/game-table/lib/gameSounds';
 import { GameTableScene } from '../widgets/game-table/ui/GameTableScene';
 
 type ConnectionStatus =
@@ -273,6 +274,7 @@ export function App() {
       return;
     }
 
+    prepareGameSounds();
     setMatchmakingStatus('waiting');
     setOpponentNotice(null);
     socket.emit('matchmaking:join');
