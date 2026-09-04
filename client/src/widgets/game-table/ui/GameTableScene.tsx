@@ -11,6 +11,7 @@ import {
   ACESFilmicToneMapping,
   CanvasTexture,
   LinearFilter,
+  PCFShadowMap,
   Shape,
   SRGBColorSpace,
 } from 'three';
@@ -713,7 +714,7 @@ function GameTableRound({
           gl.toneMapping = ACESFilmicToneMapping;
           gl.toneMappingExposure = 1.05;
         }}
-        shadows="soft"
+        shadows={{ type: PCFShadowMap }}
       >
         <color attach="background" args={['#04171e']} />
         <ambientLight color="#d8edf0" intensity={0.34} />
