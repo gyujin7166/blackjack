@@ -6,7 +6,7 @@ const CHAT_MESSAGE = 'playwright-e2e-message';
 type RoundControlState =
   'waiting' | 'stand-a' | 'stand-b' | 'settling' | 'finished';
 
-type StandActionResult = 'clicked' | 'not-actionable';
+type ButtonActionResult = 'clicked' | 'not-actionable';
 
 interface StandSnapshot {
   enabled: boolean;
@@ -31,10 +31,10 @@ async function getStandSnapshot(stand: Locator): Promise<StandSnapshot> {
   });
 }
 
-async function triggerStandIfActionable(
-  stand: Locator,
-): Promise<StandActionResult> {
-  return stand.evaluateAll((elements) => {
+async function triggerButtonIfActionable(
+  buttonLocator: Locator,
+): Promise<ButtonActionResult> {
+  return buttonLocator.evaluateAll((elements) => {
     const button = elements[0];
 
     if (!(button instanceof HTMLButtonElement)) {
@@ -82,7 +82,7 @@ async function ensureChatIsAvailable(pageA: Page, pageB: Page) {
       [pageA, pageB].map(async (page) => {
         if (await page.getByLabel('메시지').isVisible()) return;
         const chatToggle = page.getByRole('button', { name: '채팅 열기' });
-        if (await chatToggle.isVisible()) await chatToggle.click();
+        await triggerButtonIfActionable(chatToggle);
       }),
     );
     const inputA = pageA.getByLabel('메시지');
@@ -115,6 +115,63 @@ async function ensureChatIsAvailable(pageA: Page, pageB: Page) {
 
   await expect(pageA.getByLabel('메시지')).toBeVisible();
   await expect(pageB.getByLabel('메시지')).toBeVisible();
+}
+
+async function sendChatMessage(pageA: Page, pageB: Page) {
+  const selfMessage = pageA.getByText(`Self: ${CHAT_MESSAGE}`, {
+    exact: true,
+  });
+  const opponentMessage = pageB.getByText(`Opponent: ${CHAT_MESSAGE}`, {
+    exact: true,
+  });
+  const dialogA = pageA.getByRole('dialog', { name: RESULT_DIALOG_NAME });
+  const dialogB = pageB.getByRole('dialog', { name: RESULT_DIALOG_NAME });
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    await ensureChatIsAvailable(pageA, pageB);
+    await pageA.getByLabel('메시지').fill(CHAT_MESSAGE);
+
+    const actionResult = await triggerButtonIfActionable(
+      pageA.getByRole('button', { name: '전송' }),
+    );
+    if (actionResult === 'not-actionable') continue;
+
+    const delivery = {
+      state: 'waiting' as 'delivered' | 'finished' | 'waiting',
+    };
+    await expect
+      .poll(
+        async () => {
+          if (
+            (await selfMessage.isVisible()) &&
+            (await opponentMessage.isVisible())
+          ) {
+            delivery.state = 'delivered';
+            return delivery.state;
+          }
+          if ((await dialogA.isVisible()) && (await dialogB.isVisible())) {
+            delivery.state = 'finished';
+            return delivery.state;
+          }
+          delivery.state = 'waiting';
+          return delivery.state;
+        },
+        { timeout: 20_000 },
+      )
+      .not.toBe('waiting');
+
+    if (delivery.state === 'delivered') return;
+
+    await ensureChatIsAvailable(pageA, pageB);
+    if (
+      (await selfMessage.isVisible()) &&
+      (await opponentMessage.isVisible())
+    ) {
+      return;
+    }
+  }
+
+  throw new Error('채팅 메시지를 3회 안에 전송하지 못했습니다.');
 }
 
 async function finishRoundWithStand(pageA: Page, pageB: Page) {
@@ -156,7 +213,7 @@ async function finishRoundWithStand(pageA: Page, pageB: Page) {
 
     const stand = ready.state === 'stand-a' ? standA : standB;
     const actionState = ready.state;
-    const actionResult = await triggerStandIfActionable(stand);
+    const actionResult = await triggerButtonIfActionable(stand);
 
     if (actionResult === 'not-actionable') continue;
 
@@ -199,9 +256,7 @@ test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서
     await pageB.getByRole('button', { name: '게임 시작' }).click();
     await Promise.all([expectMatched(pageA), expectMatched(pageB)]);
 
-    await ensureChatIsAvailable(pageA, pageB);
-    await pageA.getByLabel('메시지').fill(CHAT_MESSAGE);
-    await pageA.getByRole('button', { name: '전송' }).click();
+    await sendChatMessage(pageA, pageB);
     await expect(
       pageA.getByText(`Self: ${CHAT_MESSAGE}`, { exact: true }),
     ).toBeVisible();
