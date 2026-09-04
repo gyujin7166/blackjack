@@ -78,6 +78,13 @@ async function acceptRematch(pageA: Page, pageB: Page) {
 
 async function ensureChatIsAvailable(pageA: Page, pageB: Page) {
   for (let attempt = 0; attempt < 5; attempt += 1) {
+    await Promise.all(
+      [pageA, pageB].map(async (page) => {
+        if (await page.getByLabel('메시지').isVisible()) return;
+        const chatToggle = page.getByRole('button', { name: '채팅 열기' });
+        if (await chatToggle.isVisible()) await chatToggle.click();
+      }),
+    );
     const inputA = pageA.getByLabel('메시지');
     const inputB = pageB.getByLabel('메시지');
     const dialogA = pageA.getByRole('dialog', { name: RESULT_DIALOG_NAME });

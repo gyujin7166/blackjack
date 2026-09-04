@@ -6,7 +6,14 @@ import type {
   PlayerSeat,
 } from '@blackjack/shared';
 import { Canvas, useThree } from '@react-three/fiber';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   ACESFilmicToneMapping,
   CanvasTexture,
@@ -30,6 +37,10 @@ import {
   createDealerPresentationPlan,
   type DealerPresentationPlan,
 } from '../lib/dealerPresentation';
+import {
+  getGameTableLayoutMode,
+  type GameTableLayoutMode,
+} from '../lib/hudLayout';
 import { DealerRevealCard3D } from './DealerRevealCard3D';
 import { CardInspectionOverlay } from './CardInspectionOverlay';
 import {
@@ -37,11 +48,12 @@ import {
   type CardInspectionSource,
   type CardScreenBounds,
 } from './DealtCard3D';
+import { GameTableChatPanel } from './GameTableChatPanel';
 import { GameTableHud, type GameTableHudProps } from './GameTableHud';
 
 interface GameTableSceneProps extends Omit<
   GameTableHudProps,
-  'dealerSequenceComplete' | 'gameState' | 'selfSeat'
+  'dealerSequenceComplete' | 'gameState' | 'layoutMode' | 'selfSeat'
 > {
   gameState: GameStatePayload;
   selfSeat: PlayerSeat;
@@ -159,6 +171,17 @@ interface InspectionPresentation {
   sourceId: string;
 }
 
+const CAMERA_POSITIONS: Record<GameTableLayoutMode, Vector3Tuple> = {
+  wide: [0, 20.5, 2],
+  compact: [0, 21.5, 2.4],
+  portrait: [0, 18.5, 4],
+};
+const CAMERA_FOV: Record<GameTableLayoutMode, number> = {
+  wide: 24,
+  compact: 30,
+  portrait: 32,
+};
+
 function getPlayerCardSourceId(
   animationRound: number,
   owner: PlayerSeat,
@@ -168,19 +191,19 @@ function getPlayerCardSourceId(
   return `${animationRound}:${owner}:${index}:${card.suit}:${card.rank}`;
 }
 
-function FixedCamera() {
+function FixedCamera({ layoutMode }: { layoutMode: GameTableLayoutMode }) {
   const camera = useThree((state) => state.camera);
-  const viewportWidth = useThree((state) => state.size.width);
-  const viewportHeight = useThree((state) => state.size.height);
+  const invalidate = useThree((state) => state.invalidate);
 
   useEffect(() => {
-    const isPortrait = viewportWidth / viewportHeight < 0.8;
-    const position: Vector3Tuple = isPortrait ? [0, 18.5, 4] : [0, 20.5, 2];
-    camera.position.set(...position);
-    (camera as PerspectiveCamera).fov = isPortrait ? 32 : 24;
-    camera.lookAt(0, 0, isPortrait ? 0.2 : 0.55);
+    const lookAtZ = layoutMode === 'portrait' ? 0.2 : 0.55;
+
+    camera.position.set(...CAMERA_POSITIONS[layoutMode]);
+    (camera as PerspectiveCamera).fov = CAMERA_FOV[layoutMode];
+    camera.lookAt(0, 0, lookAtZ);
     camera.updateProjectionMatrix();
-  }, [camera, viewportHeight, viewportWidth]);
+    invalidate();
+  }, [camera, invalidate, layoutMode]);
 
   return null;
 }
@@ -195,6 +218,7 @@ function PlayerHand({
   interactive,
   onInitialCardDealComplete,
   onInspect,
+  layoutMode,
   x,
   z,
 }: {
@@ -207,14 +231,15 @@ function PlayerHand({
   interactive: boolean;
   onInitialCardDealComplete: (id: string) => void;
   onInspect: (source: CardInspectionSource) => void;
+  layoutMode: GameTableLayoutMode;
   x: number;
   z: number;
 }) {
-  const isPortrait = useThree(
-    (state) => state.size.width / state.size.height < 0.8,
-  );
-  const handX = isPortrait ? Math.sign(x) * 1.3 : x;
-  const dealOrigin = isPortrait ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
+  const handX =
+    Math.sign(x) *
+    (layoutMode === 'portrait' ? 1.3 : layoutMode === 'compact' ? 2.65 : 3.15);
+  const dealOrigin =
+    layoutMode === 'portrait' ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
   const spacing = 0.56;
   const ownerOrder = owner === 'player1' ? 0 : 1;
 
@@ -272,6 +297,7 @@ function DealerHand({
   onHoleCardDealComplete,
   onHoleCardRevealComplete,
   revealHoleCard,
+  layoutMode,
 }: {
   cards: Array<Card | HiddenCard>;
   animationRound: number;
@@ -282,11 +308,10 @@ function DealerHand({
   onHoleCardDealComplete: () => void;
   onHoleCardRevealComplete: () => void;
   revealHoleCard: boolean;
+  layoutMode: GameTableLayoutMode;
 }) {
-  const isPortrait = useThree(
-    (state) => state.size.width / state.size.height < 0.8,
-  );
-  const dealOrigin = isPortrait ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
+  const dealOrigin =
+    layoutMode === 'portrait' ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
   const spacing = 0.64;
   const visibleIndices = [0, 1, ...drawIndices].filter(
     (index) => index < cards.length,
@@ -356,11 +381,8 @@ function DealerHand({
   );
 }
 
-function VisualDeck() {
-  const isPortrait = useThree(
-    (state) => state.size.width / state.size.height < 0.8,
-  );
-  const position = isPortrait ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
+function VisualDeck({ layoutMode }: { layoutMode: GameTableLayoutMode }) {
+  const position = layoutMode === 'portrait' ? MOBILE_DEAL_ORIGIN : DEAL_ORIGIN;
 
   return (
     <group position={position}>
@@ -483,6 +505,12 @@ function GameTableRound({
 }: GameTableSceneProps) {
   const player1X = selfSeat === 'player1' ? 3.15 : -3.15;
   const player2X = selfSeat === 'player2' ? 3.15 : -3.15;
+  const containerRef = useRef<HTMLElement>(null);
+  const [layoutMode, setLayoutMode] = useState<GameTableLayoutMode>(() =>
+    typeof window === 'undefined'
+      ? 'wide'
+      : getGameTableLayoutMode(window.innerWidth, window.innerHeight),
+  );
   const initialDealReadinessUrls = useMemo(() => {
     const urls = new Set<string>([CARD_BACK_ASSET_URL]);
 
@@ -519,6 +547,29 @@ function GameTableRound({
   const initialDealerDealCompleteRef = useRef(false);
   const initialDealCompletionsRef = useRef(new Set<string>());
   const inspectionSourceRef = useRef<CardInspectionSource | null>(null);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const updateLayoutMode = () => {
+      const { height, width } = container.getBoundingClientRect();
+      const nextMode = getGameTableLayoutMode(width, height);
+      setLayoutMode((currentMode) =>
+        currentMode === nextMode ? currentMode : nextMode,
+      );
+    };
+
+    updateLayoutMode();
+    if (typeof ResizeObserver === 'undefined') {
+      window.addEventListener('resize', updateLayoutMode);
+      return () => window.removeEventListener('resize', updateLayoutMode);
+    }
+
+    const resizeObserver = new ResizeObserver(updateLayoutMode);
+    resizeObserver.observe(container);
+    return () => resizeObserver.disconnect();
+  }, []);
 
   const handleInitialCardDealComplete = useCallback((id: string) => {
     const completions = initialDealCompletionsRef.current;
@@ -702,107 +753,133 @@ function GameTableRound({
   return (
     <section
       aria-label="블랙잭 게임 테이블"
-      className="relative h-full w-full overflow-hidden bg-[#06140f]"
+      className={`h-full w-full overflow-hidden bg-[#06140f] ${
+        layoutMode === 'wide'
+          ? 'grid grid-cols-[minmax(0,1fr)_clamp(320px,calc(215px+8.6vw),500px)]'
+          : 'relative'
+      }`}
+      ref={containerRef}
     >
-      <Canvas
-        aria-hidden="true"
-        camera={{ fov: 24, near: 0.1, far: 50, position: [0, 20.5, 2] }}
-        dpr={[1, 1.5]}
-        frameloop="demand"
-        gl={{ alpha: false, antialias: true }}
-        onCreated={({ gl }) => {
-          gl.toneMapping = ACESFilmicToneMapping;
-          gl.toneMappingExposure = 1.05;
-        }}
-        shadows={{ type: PCFShadowMap }}
-      >
-        <color attach="background" args={['#04171e']} />
-        <ambientLight color="#d8edf0" intensity={0.34} />
-        <directionalLight
-          color="#9bcbd2"
-          intensity={0.42}
-          position={[-6, 7, 5]}
+      <div className="relative h-full min-h-0 w-full min-w-0 overflow-hidden bg-[#06140f]">
+        <Canvas
+          aria-hidden="true"
+          camera={{ fov: 24, near: 0.1, far: 50, position: [0, 20.5, 2] }}
+          dpr={[1, 1.5]}
+          frameloop="demand"
+          gl={{ alpha: false, antialias: true }}
+          onCreated={({ gl }) => {
+            gl.toneMapping = ACESFilmicToneMapping;
+            gl.toneMappingExposure = 1.05;
+          }}
+          shadows={{ type: PCFShadowMap }}
+        >
+          <color attach="background" args={['#04171e']} />
+          <ambientLight color="#d8edf0" intensity={0.34} />
+          <directionalLight
+            color="#9bcbd2"
+            intensity={0.42}
+            position={[-6, 7, 5]}
+          />
+          <spotLight
+            angle={0.58}
+            castShadow
+            color="#fff0d2"
+            decay={1.8}
+            distance={30}
+            intensity={125}
+            penumbra={0.72}
+            position={[0, 11, -0.8]}
+            shadow-bias={-0.00012}
+            shadow-camera-far={24}
+            shadow-camera-near={1}
+            shadow-focus={0.8}
+            shadow-mapSize-height={2048}
+            shadow-mapSize-width={2048}
+            shadow-normalBias={0.025}
+          />
+          <pointLight
+            color="#61b7c8"
+            decay={2}
+            distance={12}
+            intensity={5}
+            position={[5, 4, -3]}
+          />
+          <FixedCamera layoutMode={layoutMode} />
+          <Table />
+          <PlayerHand
+            animationRound={animationRound}
+            cards={gameState.player1.hand}
+            initialDealReadinessUrls={initialDealReadinessUrls}
+            inspectionEnabled={initialDealComplete}
+            inspectedSourceId={inspection?.sourceId ?? null}
+            interactive={selfSeat === 'player1'}
+            layoutMode={layoutMode}
+            onInitialCardDealComplete={handleInitialCardDealComplete}
+            onInspect={handleInspect}
+            owner="player1"
+            x={player1X}
+            z={1.82}
+          />
+          <PlayerHand
+            animationRound={animationRound}
+            cards={gameState.player2.hand}
+            initialDealReadinessUrls={initialDealReadinessUrls}
+            inspectionEnabled={initialDealComplete}
+            inspectedSourceId={inspection?.sourceId ?? null}
+            interactive={selfSeat === 'player2'}
+            layoutMode={layoutMode}
+            onInitialCardDealComplete={handleInitialCardDealComplete}
+            onInspect={handleInspect}
+            owner="player2"
+            x={player2X}
+            z={1.82}
+          />
+          <DealerHand
+            animationRound={animationRound}
+            cards={gameState.dealer.hand}
+            drawIndices={visibleDrawIndices}
+            initialDealReadinessUrls={initialDealReadinessUrls}
+            onDrawComplete={handleDealerDrawComplete}
+            onInitialCardDealComplete={handleInitialCardDealComplete}
+            onHoleCardDealComplete={handleHoleCardDealComplete}
+            onHoleCardRevealComplete={handleHoleCardRevealComplete}
+            revealHoleCard={revealHoleCard}
+            layoutMode={layoutMode}
+          />
+          <VisualDeck layoutMode={layoutMode} />
+        </Canvas>
+        <GameTableHud
+          dealerSequenceComplete={dealerSequenceComplete}
+          gameState={gameState}
+          layoutMode={layoutMode}
+          selfSeat={selfSeat}
+          {...hudProps}
         />
-        <spotLight
-          angle={0.58}
-          castShadow
-          color="#fff0d2"
-          decay={1.8}
-          distance={30}
-          intensity={125}
-          penumbra={0.72}
-          position={[0, 11, -0.8]}
-          shadow-bias={-0.00012}
-          shadow-camera-far={24}
-          shadow-camera-near={1}
-          shadow-focus={0.8}
-          shadow-mapSize-height={2048}
-          shadow-mapSize-width={2048}
-          shadow-normalBias={0.025}
-        />
-        <pointLight
-          color="#61b7c8"
-          decay={2}
-          distance={12}
-          intensity={5}
-          position={[5, 4, -3]}
-        />
-        <FixedCamera />
-        <Table />
-        <PlayerHand
-          animationRound={animationRound}
-          cards={gameState.player1.hand}
-          initialDealReadinessUrls={initialDealReadinessUrls}
-          inspectionEnabled={initialDealComplete}
-          inspectedSourceId={inspection?.sourceId ?? null}
-          interactive={selfSeat === 'player1'}
-          onInitialCardDealComplete={handleInitialCardDealComplete}
-          onInspect={handleInspect}
-          owner="player1"
-          x={player1X}
-          z={1.82}
-        />
-        <PlayerHand
-          animationRound={animationRound}
-          cards={gameState.player2.hand}
-          initialDealReadinessUrls={initialDealReadinessUrls}
-          inspectionEnabled={initialDealComplete}
-          inspectedSourceId={inspection?.sourceId ?? null}
-          interactive={selfSeat === 'player2'}
-          onInitialCardDealComplete={handleInitialCardDealComplete}
-          onInspect={handleInspect}
-          owner="player2"
-          x={player2X}
-          z={1.82}
-        />
-        <DealerHand
-          animationRound={animationRound}
-          cards={gameState.dealer.hand}
-          drawIndices={visibleDrawIndices}
-          initialDealReadinessUrls={initialDealReadinessUrls}
-          onDrawComplete={handleDealerDrawComplete}
-          onInitialCardDealComplete={handleInitialCardDealComplete}
-          onHoleCardDealComplete={handleHoleCardDealComplete}
-          onHoleCardRevealComplete={handleHoleCardRevealComplete}
-          revealHoleCard={revealHoleCard}
-        />
-        <VisualDeck />
-      </Canvas>
-      <GameTableHud
-        dealerSequenceComplete={dealerSequenceComplete}
-        gameState={gameState}
-        selfSeat={selfSeat}
-        {...hudProps}
-      />
-      {inspection && inspectionSourceRef.current ? (
-        <CardInspectionOverlay
-          card={inspection.card}
-          closeRequested={gameState.phase === 'finished'}
-          getSourceBounds={inspectionSourceRef.current.getCurrentBounds}
-          onClosed={handleInspectionClosed}
-          sourceBounds={inspection.sourceBounds}
-        />
-      ) : null}
+        {inspection && inspectionSourceRef.current ? (
+          <CardInspectionOverlay
+            card={inspection.card}
+            closeRequested={gameState.phase === 'finished'}
+            getSourceBounds={inspectionSourceRef.current.getCurrentBounds}
+            onClosed={handleInspectionClosed}
+            sourceBounds={inspection.sourceBounds}
+          />
+        ) : null}
+      </div>
+      {layoutMode === 'wide' && (
+        <aside className="min-h-0 border-l border-white/10 bg-slate-950/80 p-[clamp(16px,calc(10px+0.3125vw),22px)]">
+          {gameState.phase !== 'finished' && (
+            <GameTableChatPanel
+              chatInput={hudProps.chatInput}
+              chatMessages={hudProps.chatMessages}
+              id="game-table-wide-chat"
+              onChatInputChange={hudProps.onChatInputChange}
+              onChatSubmit={hudProps.onChatSubmit}
+              selfSeat={selfSeat}
+              variant="wide"
+            />
+          )}
+        </aside>
+      )}
     </section>
   );
 }
