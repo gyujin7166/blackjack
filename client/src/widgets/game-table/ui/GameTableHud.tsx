@@ -3,6 +3,7 @@ import type {
   GameResult,
   GameStatePayload,
   PlayerSeat,
+  PlayerStatus,
   TurnTimerPayload,
 } from '@blackjack/shared';
 import { type FormEvent, useEffect, useState } from 'react';
@@ -39,13 +40,88 @@ const resultLabels: Record<GameResult, string> = {
   push: '무승부',
 };
 
+const statusLabels: Record<PlayerStatus, string> = {
+  waiting: '차례 대기',
+  playing: '플레이 중',
+  stood: '스탠드',
+  bust: '버스트',
+  blackjack: '블랙잭',
+  'twenty-one': '21점',
+};
+
+const statusPanelBaseClass =
+  'rounded-xl border border-border-muted/15 bg-surface/85 text-ink shadow-status-panel backdrop-blur-sm';
 const wideStatusPanelClass =
-  'min-w-[clamp(128px,calc(80px+2.5vw),168px)] rounded-md border border-white/15 bg-slate-950/70 px-[clamp(12px,calc(6px+0.3125vw),17px)] py-[clamp(8px,calc(2px+0.3125vw),12px)] text-[clamp(14px,calc(8px+0.3125vw),19px)] leading-snug text-white/90 backdrop-blur-sm';
+  'min-w-[clamp(164px,8.75vw,216px)] px-[calc(clamp(18px,1vw,24px)+4px)] py-[clamp(18px,1vw,24px)] text-[clamp(18px,0.88vw,22px)] leading-snug';
 const compactStatusPanelClass =
-  'rounded-md border border-white/15 bg-slate-950/70 px-2 py-1.5 text-[11px] leading-tight text-white/90 backdrop-blur-sm';
+  'min-w-[86px] px-3 py-2 text-[11px] leading-tight';
 const wideActionButtonClass =
-  'min-h-[clamp(48px,calc(24px+1.25vw),64px)] text-[clamp(16px,calc(10px+0.3125vw),21px)]';
+  'min-h-[clamp(68px,3.8vw,80px)] px-[clamp(16px,0.9vw,20px)] text-[clamp(18px,0.88vw,22px)]';
+const activeStatusPanelClass = 'border-turn shadow-active-status';
+const actionButtonBaseClass =
+  'grid min-h-12 grid-cols-[auto_1fr_auto] items-center gap-[clamp(9px,0.7vw,14px)] rounded-lg border border-action-border bg-[linear-gradient(180deg,var(--color-action-top),var(--color-action-bottom))] px-3 py-2.5 text-left text-base font-bold text-action-text shadow-action-button transition-[background-color,background-image,border-color,box-shadow,color,transform] duration-150 hover:enabled:-translate-y-px disabled:opacity-45';
+const primaryButtonClass =
+  'rounded-lg border border-accent bg-accent px-4 py-2.5 font-bold text-action-ink hover:enabled:border-accent-hover hover:enabled:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50';
+const secondaryButtonClass =
+  'rounded-lg border border-action-secondary-border/65 bg-surface-button px-4 py-2.5 font-bold text-action-secondary-text hover:enabled:border-action-secondary-border hover:enabled:bg-surface-button-hover disabled:cursor-not-allowed disabled:opacity-50';
 const CHAT_PANEL_ID = 'game-table-chat-panel';
+
+function TimerIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-full fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]"
+      viewBox="0 0 24 24"
+    >
+      <path d="M9 2h6M12 2v3M18.2 6.1l1.4-1.4" />
+      <circle cx="12" cy="13" r="7.5" />
+      <path d="M12 9v4l2.6 1.7" />
+    </svg>
+  );
+}
+
+function HitIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-full fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]"
+      viewBox="0 0 32 32"
+    >
+      <rect
+        height="19"
+        rx="2.5"
+        transform="rotate(-12 11 17)"
+        width="13"
+        x="4.5"
+        y="7.5"
+      />
+      <rect
+        height="19"
+        rx="2.5"
+        transform="rotate(8 20 15)"
+        width="13"
+        x="13.5"
+        y="5.5"
+      />
+      <path d="M20 10v8M16 14h8" />
+    </svg>
+  );
+}
+
+function StandIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="size-full fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:1.8]"
+      viewBox="0 0 32 32"
+    >
+      <path d="M9.5 15V8.5a2 2 0 0 1 4 0V14" />
+      <path d="M13.5 14V6.5a2 2 0 0 1 4 0V14" />
+      <path d="M17.5 14V7.5a2 2 0 0 1 4 0V15" />
+      <path d="M21.5 15v-4.5a2 2 0 0 1 4 0v7.75C25.5 24.2 21.25 28 16 28c-4.1 0-6.7-2.15-8.3-5.1L4.9 17.8a2.15 2.15 0 0 1 3.65-2.25L11 18" />
+    </svg>
+  );
+}
 
 export function GameTableHud({
   gameState,
@@ -74,7 +150,6 @@ export function GameTableHud({
     selfSeat === 'player1' ? gameState.player2 : gameState.player1;
   const isFinished = gameState.phase === 'finished';
   const showFinishedResult = isFinished && dealerSequenceComplete;
-  const showCanonicalResults = !isFinished || dealerSequenceComplete;
   const isPortrait = layoutMode === 'portrait';
   const usesChatDrawer = layoutMode !== 'wide';
   const [chatOpen, setChatOpen] = useState(false);
@@ -93,30 +168,80 @@ export function GameTableHud({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [chatOpen]);
 
+  useEffect(() => {
+    if (!canAct || isFinished) return;
+
+    const handleActionShortcut = (event: KeyboardEvent) => {
+      const target = event.target;
+      if (
+        event.repeat ||
+        (target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.tagName === 'INPUT' ||
+            target.tagName === 'TEXTAREA'))
+      ) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key !== 'h' && key !== 's') return;
+
+      event.preventDefault();
+      if (key === 'h') onHit();
+      else onStand();
+    };
+
+    window.addEventListener('keydown', handleActionShortcut);
+    return () => window.removeEventListener('keydown', handleActionShortcut);
+  }, [canAct, isFinished, onHit, onStand]);
+
   const statusPanelClass =
     layoutMode === 'wide' ? wideStatusPanelClass : compactStatusPanelClass;
+  const opponentIsActive =
+    gameState.phase === (selfSeat === 'player1' ? 'player2' : 'player1');
+  const selfIsActive = gameState.phase === selfSeat;
+  const statusLabelClass = `font-bold tracking-[0.08em] ${
+    layoutMode === 'wide' ? 'text-[clamp(11px,0.55vw,14px)]' : 'text-[11px]'
+  }`;
+  const scoreClass = `my-1.5 font-semibold tabular-nums ${
+    layoutMode === 'wide'
+      ? 'text-[1.45em]'
+      : 'whitespace-nowrap text-[clamp(17px,4.4vw,20px)]'
+  }`;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden">
       <section
-        className={`${statusPanelClass} absolute ${
-          layoutMode === 'wide' ? 'bottom-24 left-5' : 'top-3 left-3'
+        data-active={opponentIsActive}
+        className={`${statusPanelBaseClass} ${statusPanelClass} absolute ${
+          opponentIsActive ? activeStatusPanelClass : ''
+        } ${
+          layoutMode === 'wide'
+            ? 'bottom-[clamp(18px,1vw,26px)] left-[clamp(18px,1vw,26px)]'
+            : 'top-3 left-3'
         }`}
       >
-        <h2 className="font-bold">Opponent</h2>
-        <p>Score: {opponent.score}</p>
-        <p>Status: {opponent.status}</p>
-        {showCanonicalResults && opponent.result && (
-          <p>Result: {resultLabels[opponent.result]}</p>
-        )}
+        <h2
+          className={`${statusLabelClass} ${opponentIsActive ? 'text-turn-label' : 'text-label'}`}
+        >
+          상대
+        </h2>
+        <p className={scoreClass}>점수: {opponent.score}</p>
+        <p className="text-[0.75em] text-status">
+          {statusLabels[opponent.status]}
+        </p>
       </section>
 
       <section
-        className={`${statusPanelClass} absolute top-3 left-1/2 -translate-x-1/2 text-center`}
+        className={`${statusPanelBaseClass} ${statusPanelClass} absolute top-3 left-1/2 -translate-x-1/2 text-center ${
+          layoutMode === 'wide'
+            ? 'flex flex-col items-center justify-center'
+            : ''
+        }`}
       >
-        <h2 className="font-bold">Dealer</h2>
-        <p>
-          Dealer score:{' '}
+        <h2 className={`${statusLabelClass} text-label`}>딜러</h2>
+        <p className={scoreClass}>
+          점수:{' '}
           {isFinished && !dealerSequenceComplete
             ? '?'
             : (gameState.dealer.score ?? '?')}
@@ -124,28 +249,44 @@ export function GameTableHud({
       </section>
 
       <section
-        className={`${statusPanelClass} absolute text-right ${
-          layoutMode === 'wide' ? 'right-5 bottom-24' : 'top-3 right-3'
+        data-active={selfIsActive}
+        className={`${statusPanelBaseClass} ${statusPanelClass} absolute text-right ${
+          selfIsActive ? activeStatusPanelClass : ''
+        } ${
+          layoutMode === 'wide'
+            ? 'right-[clamp(18px,1vw,26px)] bottom-[clamp(18px,1vw,26px)]'
+            : 'top-3 right-3'
         }`}
       >
-        <h2 className="font-bold">Self</h2>
-        <p>Score: {self.score}</p>
-        <p>Status: {self.status}</p>
-        {showCanonicalResults && self.result && (
-          <p>Result: {resultLabels[self.result]}</p>
-        )}
+        <h2
+          className={`${statusLabelClass} ${selfIsActive ? 'text-turn-label' : 'text-label'}`}
+        >
+          나
+        </h2>
+        <p className={scoreClass}>점수: {self.score}</p>
+        <p className="text-[0.75em] text-status">{statusLabels[self.status]}</p>
       </section>
 
       {turnTimer && !isFinished && (
         <p
-          className={`absolute rounded-md border border-indigo-200/15 bg-indigo-950/70 font-bold whitespace-nowrap text-indigo-50/95 backdrop-blur-sm ${
+          data-urgent={turnTimerSeconds <= 5}
+          className={`absolute flex items-center gap-2 rounded-full border border-accent/20 bg-timer/90 font-bold whitespace-nowrap text-accent shadow-timer backdrop-blur-sm ${
+            turnTimerSeconds <= 5
+              ? 'border-urgent/45 text-urgent shadow-urgent'
+              : ''
+          } ${
             layoutMode === 'wide'
-              ? 'top-4 left-4 px-[clamp(12px,calc(6px+0.3125vw),17px)] py-[clamp(8px,calc(2px+0.3125vw),12px)] text-[clamp(14px,calc(8px+0.3125vw),19px)]'
-              : 'top-[76px] left-1/2 -translate-x-1/2 px-3 py-2 text-xs'
+              ? 'top-[clamp(18px,1vw,26px)] left-[clamp(18px,1vw,26px)] px-[clamp(18px,1vw,24px)] py-[clamp(12px,0.7vw,16px)] text-[clamp(14px,0.72vw,18px)]'
+              : 'top-[96px] left-1/2 -translate-x-1/2 px-3 py-2 text-xs'
           }`}
         >
-          {turnTimer.player === selfSeat ? '내' : '상대'} 턴 남은 시간:{' '}
-          {turnTimerSeconds}초
+          <span className="size-[1.25em] shrink-0">
+            <TimerIcon />
+          </span>
+          <span>
+            {turnTimer.player === selfSeat ? '내' : '상대'} 턴 남은 시간:{' '}
+            {turnTimerSeconds}초
+          </span>
         </p>
       )}
 
@@ -156,8 +297,8 @@ export function GameTableHud({
               aria-controls={CHAT_PANEL_ID}
               aria-expanded={chatOpen}
               aria-label={chatOpen ? '채팅 닫기' : '채팅 열기'}
-              className={`pointer-events-auto absolute z-20 min-h-11 rounded-lg border border-white/20 bg-slate-950/85 px-4 text-sm font-bold text-white shadow-lg ${
-                isPortrait ? 'right-3 bottom-[68px]' : 'bottom-3 left-3'
+              className={`${secondaryButtonClass} pointer-events-auto absolute z-20 min-h-11 text-sm shadow-lg ${
+                isPortrait ? 'right-3 bottom-[92px]' : 'bottom-3 left-3'
               }`}
               onClick={() => setChatOpen((open) => !open)}
               type="button"
@@ -170,8 +311,8 @@ export function GameTableHud({
             <div
               className={`pointer-events-auto absolute z-20 ${
                 isPortrait
-                  ? 'top-24 right-3 bottom-[124px] left-3'
-                  : 'top-3 right-3 bottom-[68px] w-[min(380px,calc(100%-1.5rem))]'
+                  ? 'top-24 right-3 bottom-[148px] left-3'
+                  : 'top-3 right-3 bottom-[82px] w-[min(400px,calc(100%-1.5rem))]'
               }`}
             >
               <GameTableChatPanel
@@ -190,7 +331,7 @@ export function GameTableHud({
           <div
             className={`pointer-events-auto absolute ${
               layoutMode === 'wide'
-                ? 'bottom-5 left-1/2 w-[clamp(300px,calc(210px+4.6875vw),360px)] -translate-x-1/2'
+                ? 'bottom-[clamp(18px,1vw,26px)] left-1/2 w-[clamp(480px,29vw,560px)] -translate-x-1/2'
                 : isPortrait
                   ? 'right-3 bottom-3 left-3'
                   : 'right-3 bottom-3 w-[280px]'
@@ -206,30 +347,42 @@ export function GameTableHud({
             )}
             <div
               className={`grid grid-cols-2 ${
-                layoutMode === 'wide'
-                  ? 'gap-[clamp(8px,calc(2px+0.3125vw),12px)]'
-                  : 'gap-2'
+                layoutMode === 'wide' ? 'gap-[clamp(12px,0.7vw,16px)]' : 'gap-2'
               }`}
             >
               <button
-                className={`min-h-12 rounded-lg bg-gray-100 px-3 py-2.5 text-base font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
+                aria-label="Hit"
+                className={`${actionButtonBaseClass} hover:enabled:border-hit-top hover:enabled:bg-[linear-gradient(180deg,var(--color-hit-top),var(--color-hit-bottom))] hover:enabled:text-hit-ink hover:enabled:shadow-hit-button ${
                   layoutMode === 'wide' ? wideActionButtonClass : ''
                 }`}
                 disabled={!canAct}
                 onClick={onHit}
                 type="button"
               >
-                Hit
+                <span className="size-[clamp(22px,1.45vw,29px)] shrink-0">
+                  <HitIcon />
+                </span>
+                <span className="leading-none">Hit</span>
+                <kbd className="min-w-[1.9em] rounded-md border border-current/25 bg-black/8 px-1.5 py-1 text-center text-[0.58em] leading-none font-bold opacity-70">
+                  H
+                </kbd>
               </button>
               <button
-                className={`min-h-12 rounded-lg bg-gray-100 px-3 py-2.5 text-base font-bold text-gray-900 shadow-md disabled:cursor-not-allowed disabled:opacity-50 ${
+                aria-label="Stand"
+                className={`${actionButtonBaseClass} hover:enabled:border-stand-border hover:enabled:bg-[linear-gradient(180deg,var(--color-stand-top),var(--color-stand-bottom))] ${
                   layoutMode === 'wide' ? wideActionButtonClass : ''
                 }`}
                 disabled={!canAct}
                 onClick={onStand}
                 type="button"
               >
-                Stand
+                <span className="size-[clamp(22px,1.45vw,29px)] shrink-0">
+                  <StandIcon />
+                </span>
+                <span className="leading-none">Stand</span>
+                <kbd className="min-w-[1.9em] rounded-md border border-current/25 bg-black/8 px-1.5 py-1 text-center text-[0.58em] leading-none font-bold opacity-70">
+                  S
+                </kbd>
               </button>
             </div>
           </div>
@@ -239,19 +392,19 @@ export function GameTableHud({
       {showFinishedResult && (
         <>
           <div className="pointer-events-auto absolute inset-0 z-30 bg-black/70" />
-          <div className="pointer-events-none absolute inset-0 z-40 grid place-items-center p-4">
+          <div className="pointer-events-none absolute inset-0 z-40 grid grid-cols-1 place-items-center p-4">
             <section
               aria-label="게임 결과"
               aria-modal="true"
-              className={`pointer-events-auto max-h-[calc(100dvh-2rem)] max-w-full overflow-y-auto rounded-2xl border border-white/15 bg-slate-900 text-center text-white shadow-2xl ${
+              className={`pointer-events-auto max-h-[calc(100dvh-2rem)] max-w-full overflow-y-auto rounded-2xl border border-accent/30 bg-result text-center text-white shadow-2xl ${
                 layoutMode === 'wide'
-                  ? 'w-[clamp(384px,calc(240px+7.5vw),480px)] p-[clamp(20px,calc(8px+0.625vw),28px)]'
+                  ? 'w-[clamp(430px,25vw,520px)] p-[clamp(24px,1.5vw,34px)]'
                   : 'w-96 p-5'
               }`}
               role="dialog"
             >
               <p
-                className={`font-bold tracking-[0.18em] text-slate-400 ${
+                className={`font-bold tracking-[0.18em] text-result-label ${
                   layoutMode === 'wide'
                     ? 'text-[clamp(12px,calc(6px+0.3125vw),16px)]'
                     : 'text-xs'
@@ -272,9 +425,9 @@ export function GameTableHud({
                 className={`mt-5 grid gap-2 ${isPortrait ? 'grid-cols-1' : 'grid-cols-2'}`}
               >
                 <button
-                  className={`rounded-lg bg-amber-500 px-4 py-2.5 font-bold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`${primaryButtonClass} ${
                     layoutMode === 'wide'
-                      ? 'min-h-[clamp(44px,calc(20px+1.25vw),56px)] text-[clamp(16px,calc(10px+0.3125vw),21px)]'
+                      ? 'min-h-[clamp(56px,3vw,66px)] text-[clamp(17px,0.88vw,21px)]'
                       : ''
                   }`}
                   disabled={
@@ -286,9 +439,9 @@ export function GameTableHud({
                   재대결
                 </button>
                 <button
-                  className={`rounded-lg bg-emerald-600 px-4 py-2.5 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
+                  className={`${secondaryButtonClass} ${
                     layoutMode === 'wide'
-                      ? 'min-h-[clamp(44px,calc(20px+1.25vw),56px)] text-[clamp(16px,calc(10px+0.3125vw),21px)]'
+                      ? 'min-h-[clamp(56px,3vw,66px)] text-[clamp(17px,0.88vw,21px)]'
                       : ''
                   }`}
                   disabled={newOpponentPending || rematchPending}
@@ -300,7 +453,7 @@ export function GameTableHud({
               </div>
               {selfAccepted && (
                 <div
-                  className={`mt-4 rounded-lg bg-blue-950 p-3 text-blue-100 ${
+                  className={`mt-4 rounded-lg bg-accent/5 p-3 text-accent ${
                     layoutMode === 'wide'
                       ? 'text-[clamp(14px,calc(8px+0.3125vw),19px)]'
                       : 'text-sm'
@@ -312,7 +465,7 @@ export function GameTableHud({
               )}
               {opponentAccepted && !selfAccepted && (
                 <p
-                  className={`mt-4 rounded-lg bg-blue-950 p-3 text-blue-100 ${
+                  className={`mt-4 rounded-lg bg-accent/5 p-3 text-accent ${
                     layoutMode === 'wide'
                       ? 'text-[clamp(14px,calc(8px+0.3125vw),19px)]'
                       : 'text-sm'

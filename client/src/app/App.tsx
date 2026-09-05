@@ -24,28 +24,23 @@ type ConnectionStatus =
 
 const connectionPresentations: Record<
   ConnectionStatus,
-  { message: string; detail?: string; className: string }
+  { message: string; detail?: string }
 > = {
   connecting: {
     message: '서버에 연결 중입니다...',
     detail: '첫 연결은 잠시 걸릴 수 있습니다.',
-    className: 'border-blue-400/30 bg-blue-950/60 text-blue-100',
   },
   connected: {
     message: '서버에 연결되었습니다.',
-    className: 'border-emerald-400/30 bg-emerald-950/60 text-emerald-100',
   },
   reconnecting: {
     message: '연결이 끊어졌습니다. 자동으로 다시 연결을 시도하고 있습니다.',
-    className: 'border-amber-400/30 bg-amber-950/60 text-amber-100',
   },
   'connection-error': {
     message: '서버에 연결하지 못했습니다. 자동으로 다시 시도하고 있습니다.',
-    className: 'border-amber-400/30 bg-amber-950/60 text-amber-100',
   },
   disconnected: {
     message: '서버 연결에 실패했습니다. 자동으로 다시 연결할 수 없습니다.',
-    className: 'border-red-400/30 bg-red-950/60 text-red-100',
   },
 };
 
@@ -347,7 +342,7 @@ export function App() {
 
   if (match && gameState) {
     return (
-      <main className="h-dvh w-full overflow-hidden bg-[#06140f]">
+      <main className="h-dvh w-full overflow-hidden bg-surface-deep">
         <GameTableScene
           actionError={actionError}
           animationRound={animationRound}
@@ -374,48 +369,141 @@ export function App() {
   }
 
   return (
-    <main className="grid min-h-screen place-items-center p-3 sm:p-6">
-      <section className="w-full min-w-0 max-w-[760px] rounded-2xl border border-gray-700 bg-gray-800 p-4 sm:p-8">
-        <p className="m-0 text-xs font-bold tracking-[0.16em]">BLACKJACK</p>
-        <h1 className="mt-2 mb-4 text-[2em] font-bold">Realtime Blackjack</h1>
-        <div
-          aria-live="polite"
-          className={`rounded-xl border p-3 ${connectionPresentation.className}`}
-          role="status"
-        >
-          <p className="text-xs font-bold tracking-[0.12em]">서버 연결 상태</p>
-          <p className="mt-1 font-semibold">{connectionPresentation.message}</p>
-          {connectionPresentation.detail && (
-            <p className="mt-1 text-sm opacity-80">
-              {connectionPresentation.detail}
+    <main className="min-h-dvh w-full bg-surface bg-lobby px-[max(28px,calc((100vw-1180px)/2))] max-sm:px-6">
+      <section
+        className="grid min-h-dvh grid-cols-2 items-center gap-6 py-[50px] max-[900px]:gap-0 max-sm:grid-cols-1 max-sm:pt-[42px] max-sm:pb-7"
+        aria-labelledby="lobby-title"
+      >
+        <div className="max-sm:z-1">
+          <div
+            className="inline-flex items-center gap-3 text-[24px] font-extrabold tracking-[1.5px] text-ink max-sm:mb-[52px] max-sm:gap-2 max-sm:text-[15px]"
+            aria-label="블랙잭"
+          >
+            <span
+              className="text-[33px] leading-none text-accent max-sm:text-[28px]"
+              aria-hidden="true"
+            >
+              ♠
+            </span>
+            BLACKJACK<span className="-ml-2.5 text-accent">.</span>
+          </div>
+          <h1
+            className="my-[26px] text-[clamp(42px,4.4vw,62px)] leading-[1.28] font-[650] tracking-[-3px] break-keep max-[900px]:tracking-[-2px] max-sm:my-[22px] max-sm:mb-5 max-sm:text-[clamp(38px,9vw,52px)]"
+            id="lobby-title"
+          >
+            한 장의 선택,
+            <br />
+            새로운 <em className="not-italic text-accent">승부.</em>
+          </h1>
+          <p className="text-[15px] leading-[1.9] text-muted break-keep max-sm:text-[13px]">
+            21에 가까워지는 순간, 시작되는 심리전.
+            <br />
+            실시간으로 상대와 플레이하세요.
+          </p>
+
+          <button
+            className="mt-8 flex min-h-[58px] w-[264px] items-center gap-3 rounded-[7px] border border-accent bg-accent px-[23px] text-[15px] font-[750] text-action-ink hover:enabled:border-accent-hover hover:enabled:bg-accent-hover hover:enabled:shadow-lobby-button disabled:border-status/35 disabled:bg-surface-disabled disabled:text-label max-sm:w-full"
+            type="button"
+            onClick={handleStartGame}
+            disabled={!isConnected || matchmakingStatus !== 'idle'}
+          >
+            {matchmakingStatus === 'waiting' && (
+              <span
+                className="size-4 animate-spin rounded-full border-2 border-label/25 border-t-accent motion-reduce:animate-none"
+                aria-hidden="true"
+              />
+            )}
+            {buttonLabel}
+            <span
+              className="ml-auto text-[25px] font-normal"
+              aria-hidden="true"
+            >
+              ↗
+            </span>
+          </button>
+
+          <div
+            className="mt-[17px] flex max-w-[390px] items-start gap-2 text-[11px] leading-[1.8] text-muted"
+            data-connection={connectionStatus}
+            role="status"
+            aria-live="polite"
+          >
+            <span
+              className={`mt-[7px] size-[5px] shrink-0 rounded-full ${
+                connectionStatus === 'connected'
+                  ? 'bg-connection shadow-connection'
+                  : connectionStatus === 'disconnected'
+                    ? 'bg-disconnected'
+                    : 'bg-warm'
+              }`}
+              aria-hidden="true"
+            />
+            <div>
+              <p>{connectionPresentation.message}</p>
+              {connectionPresentation.detail && (
+                <p>{connectionPresentation.detail}</p>
+              )}
+              {matchmakingStatus === 'waiting' && (
+                <p className="text-accent">
+                  다른 플레이어를 기다리고 있습니다.
+                </p>
+              )}
+              {match && (
+                <p className="text-accent">게임 테이블을 준비하고 있습니다.</p>
+              )}
+            </div>
+          </div>
+          {opponentNotice && (
+            <p
+              className="mt-4 border-l-2 border-notice bg-notice/5 px-[15px] py-3 text-xs leading-[1.8] text-notice-text"
+              aria-live="polite"
+            >
+              {opponentNotice}
             </p>
           )}
         </div>
 
-        <button
-          className="mt-5 cursor-pointer rounded-[10px] border-0 bg-gray-200 px-[18px] py-3 font-bold text-gray-900 disabled:cursor-not-allowed disabled:opacity-60"
-          type="button"
-          onClick={handleStartGame}
-          disabled={!isConnected || matchmakingStatus !== 'idle'}
+        <div
+          className="relative isolate h-[440px] max-[900px]:h-[360px] max-sm:mx-auto max-sm:mt-[25px] max-sm:h-[330px] max-sm:w-full max-sm:max-w-[400px]"
+          aria-hidden="true"
         >
-          {buttonLabel}
-        </button>
-
-        {matchmakingStatus === 'waiting' && (
-          <p className="mt-4">다른 플레이어를 기다리고 있습니다.</p>
-        )}
-
-        {opponentNotice && (
-          <p className="mt-4 rounded-lg bg-amber-900 p-3 text-amber-100">
-            {opponentNotice}
-          </p>
-        )}
-
-        {match && (
-          <p className="mt-4 rounded-[10px] bg-gray-900 p-4 text-gray-200">
-            게임 테이블을 준비하고 있습니다.
-          </p>
-        )}
+          <div className="absolute top-1/2 left-1/2 h-[81%] w-full -translate-x-1/2 -translate-y-1/2 -rotate-[28deg] rounded-full border border-orbit/15" />
+          <div className="absolute top-1/2 left-1/2 h-[71%] w-[87%] -translate-x-1/2 -translate-y-1/2 -rotate-[28deg] rounded-full border border-dashed border-orbit/10" />
+          <span className="absolute top-3 left-1/2 -translate-x-1/2 text-[9px] tracking-[3px] whitespace-nowrap text-caption/40 max-sm:top-0.5 max-sm:text-[8px]">
+            THE TABLE IS YOURS
+          </span>
+          <span className="absolute top-[90px] right-[6%] font-serif text-[42px] leading-none text-sparkle max-sm:top-[60px]">
+            ✧
+          </span>
+          <span className="absolute bottom-[65px] left-[11%] font-serif text-[26px] leading-none text-sparkle opacity-50">
+            ✧
+          </span>
+          <div className="absolute top-[75px] left-[18%] w-[34%] max-w-[190px] -rotate-[17deg] overflow-hidden rounded-xl bg-paper shadow-playing-card max-[900px]:top-[65px] max-sm:top-[50px] max-sm:left-[20%] max-sm:w-[32%]">
+            <img
+              className="block h-auto w-full"
+              src="/cards/opendecks/raster/fronts/spades/ace_of_spades.webp"
+              alt=""
+            />
+          </div>
+          <div className="absolute top-[112px] left-[45%] w-[34%] max-w-[190px] rotate-[14deg] overflow-hidden rounded-xl bg-paper shadow-playing-card max-[900px]:top-[90px] max-sm:top-20 max-sm:w-[32%]">
+            <img
+              className="block h-auto w-full"
+              src="/cards/opendecks/raster/fronts/hearts/king_of_hearts.webp"
+              alt=""
+            />
+          </div>
+          <div className="absolute bottom-[25px] left-[29%] flex size-[102px] -rotate-12 flex-col items-center justify-center gap-px rounded-full bg-accent text-stamp-ink shadow-stamp outline outline-1 outline-offset-[-7px] outline-stamp-border max-[900px]:bottom-9 max-[900px]:size-20 max-sm:bottom-[22px]">
+            <strong className="font-serif text-[43px] leading-none italic max-[900px]:text-[34px]">
+              21
+            </strong>
+            <span className="mt-1 text-[6px] font-extrabold tracking-[1px] max-[900px]:text-[5px]">
+              A PERFECT HAND
+            </span>
+          </div>
+          <span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[8px] tracking-[2px] whitespace-nowrap text-caption/40">
+            A LITTLE LUCK. A LITTLE STRATEGY.
+          </span>
+        </div>
       </section>
     </main>
   );

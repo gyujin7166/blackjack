@@ -427,9 +427,9 @@ export function CardInspectionOverlay({
         dpr={[1, 1.5]}
         frameloop="demand"
         gl={{ alpha: true, antialias: true }}
+        className="touch-none"
         onPointerMissed={requestClose}
         orthographic
-        style={{ touchAction: 'none' }}
       >
         <InspectionScene
           card={card}
