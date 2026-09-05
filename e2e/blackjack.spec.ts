@@ -118,10 +118,10 @@ async function ensureChatIsAvailable(pageA: Page, pageB: Page) {
 }
 
 async function sendChatMessage(pageA: Page, pageB: Page) {
-  const selfMessage = pageA.getByText(`Self: ${CHAT_MESSAGE}`, {
+  const selfMessage = pageA.getByText(`나: ${CHAT_MESSAGE}`, {
     exact: true,
   });
-  const opponentMessage = pageB.getByText(`Opponent: ${CHAT_MESSAGE}`, {
+  const opponentMessage = pageB.getByText(`상대: ${CHAT_MESSAGE}`, {
     exact: true,
   });
   const dialogA = pageA.getByRole('dialog', { name: RESULT_DIALOG_NAME });
@@ -258,10 +258,10 @@ test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서
 
     await sendChatMessage(pageA, pageB);
     await expect(
-      pageA.getByText(`Self: ${CHAT_MESSAGE}`, { exact: true }),
+      pageA.getByText(`나: ${CHAT_MESSAGE}`, { exact: true }),
     ).toBeVisible();
     await expect(
-      pageB.getByText(`Opponent: ${CHAT_MESSAGE}`, { exact: true }),
+      pageB.getByText(`상대: ${CHAT_MESSAGE}`, { exact: true }),
     ).toBeVisible();
 
     await finishRoundWithStand(pageA, pageB);
@@ -269,8 +269,8 @@ test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서
 
     await Promise.all([expectMatched(pageA), expectMatched(pageB)]);
     await Promise.all([
-      expect(pageA.getByRole('heading', { name: 'Self' })).toBeVisible(),
-      expect(pageB.getByRole('heading', { name: 'Self' })).toBeVisible(),
+      expect(pageA.getByRole('heading', { name: '나' })).toBeVisible(),
+      expect(pageB.getByRole('heading', { name: '나' })).toBeVisible(),
     ]);
   } finally {
     await Promise.all([contextA.close(), contextB.close()]);

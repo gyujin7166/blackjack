@@ -276,9 +276,9 @@ describe('game state', () => {
 
     serverEmit('game:state', gameState());
 
-    expect(screen.getByRole('heading', { name: 'Dealer' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Opponent' })).toBeVisible();
-    expect(screen.getByRole('heading', { name: 'Self' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '딜러' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '상대' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '나' })).toBeVisible();
   });
 
   it.each([
@@ -299,13 +299,13 @@ describe('game state', () => {
 
       serverEmit('game:state', gameState());
 
-      const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
+      const self = screen.getByRole('heading', { name: '나' }).parentElement!;
       const opponent = screen.getByRole('heading', {
-        name: 'Opponent',
+        name: '상대',
       }).parentElement!;
-      expect(within(self).getByText(`Score: ${selfScore}`)).toBeVisible();
+      expect(within(self).getByText(`점수: ${selfScore}`)).toBeVisible();
       expect(
-        within(opponent).getByText(`Score: ${opponentScore}`),
+        within(opponent).getByText(`점수: ${opponentScore}`),
       ).toBeVisible();
     },
   );
@@ -316,9 +316,9 @@ describe('game state', () => {
     serverEmit('game:state', gameState());
 
     const dealer = screen.getByRole('heading', {
-      name: 'Dealer',
+      name: '딜러',
     }).parentElement!;
-    expect(within(dealer).getByText('Dealer score: ?')).toBeVisible();
+    expect(within(dealer).getByText('점수: ?')).toBeVisible();
     expect(dealer).not.toHaveTextContent('undefined');
   });
 });
@@ -338,7 +338,7 @@ describe('3D game table', () => {
 
     expect(screen.getByTestId('game-table-scene')).toBeVisible();
     expect(
-      screen.queryByRole('heading', { name: 'Realtime Blackjack' }),
+      screen.queryByRole('heading', { name: '한 장의 선택, 새로운 승부.' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
@@ -725,12 +725,14 @@ describe('finished game', () => {
       }),
     );
 
-    const self = screen.getByRole('heading', { name: 'Self' }).parentElement!;
+    const self = screen.getByRole('heading', { name: '나' }).parentElement!;
     const dealer = screen.getByRole('heading', {
-      name: 'Dealer',
+      name: '딜러',
     }).parentElement!;
-    expect(within(self).getByText(`Result: ${label}`)).toBeVisible();
-    expect(within(dealer).getByText('Dealer score: 20')).toBeVisible();
+    const resultDialog = screen.getByRole('dialog', { name: '게임 결과' });
+    expect(within(resultDialog).getByText(label)).toBeVisible();
+    expect(within(self).queryByText(`결과: ${label}`)).not.toBeInTheDocument();
+    expect(within(dealer).getByText('점수: 20')).toBeVisible();
     expect(
       (gameTableSceneMock.mock.calls.at(-1)?.[0] as GameTableHudProps).gameState
         .dealer.hand,
@@ -945,7 +947,7 @@ describe('new opponent', () => {
     ).toBeVisible();
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: 'Dealer' }),
+      screen.queryByRole('heading', { name: '딜러' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('재대결 요청 완료')).not.toBeInTheDocument();
   });
@@ -961,7 +963,7 @@ describe('new opponent', () => {
 
     expect(screen.getByText('게임 테이블을 준비하고 있습니다.')).toBeVisible();
     expect(
-      screen.queryByRole('heading', { name: 'Dealer' }),
+      screen.queryByRole('heading', { name: '딜러' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText('A♠')).not.toBeInTheDocument();
   });
@@ -974,7 +976,7 @@ describe('new opponent', () => {
 
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: 'Dealer' }),
+      screen.queryByRole('heading', { name: '딜러' }),
     ).not.toBeInTheDocument();
     expect(
       screen.getByText('상대 플레이어가 새 상대 찾기를 선택했습니다.'),
@@ -1192,7 +1194,7 @@ describe('turn timer', () => {
     });
 
     expect(screen.getByText('상대 턴 남은 시간: 30초')).toBeVisible();
-    expect(screen.getByText('Opponent: 한 판 더?')).toBeVisible();
+    expect(screen.getByText('상대: 한 판 더?')).toBeVisible();
   });
 });
 
@@ -1200,12 +1202,12 @@ describe('room chat', () => {
   it('shows chat controls only inside a matched game', () => {
     renderMatched();
     expect(
-      screen.queryByRole('heading', { name: 'Chat' }),
+      screen.queryByRole('heading', { name: '테이블 채팅' }),
     ).not.toBeInTheDocument();
 
     serverEmit('game:state', gameState());
 
-    expect(screen.getByRole('heading', { name: 'Chat' })).toBeVisible();
+    expect(screen.getByRole('heading', { name: '테이블 채팅' })).toBeVisible();
     expect(screen.getByRole('textbox', { name: '메시지' })).toHaveAttribute(
       'maxlength',
       '200',
@@ -1227,7 +1229,7 @@ describe('room chat', () => {
       text: '안녕하세요',
     });
     expect(input).toHaveValue('');
-    expect(screen.queryByText('Self: 안녕하세요')).not.toBeInTheDocument();
+    expect(screen.queryByText('나: 안녕하세요')).not.toBeInTheDocument();
   });
 
   it('does not send whitespace-only input', () => {
@@ -1243,7 +1245,7 @@ describe('room chat', () => {
     expect(socketMock.emit).not.toHaveBeenCalled();
   });
 
-  it('appends canonical server messages with Self and Opponent labels', () => {
+  it('appends canonical server messages with localized self and opponent labels', () => {
     renderMatched();
     serverEmit('game:state', gameState());
 
@@ -1258,8 +1260,8 @@ describe('room chat', () => {
       text: '반갑습니다',
     });
 
-    expect(screen.getByText('Self: 안녕하세요')).toBeVisible();
-    expect(screen.getByText('Opponent: 반갑습니다')).toBeVisible();
+    expect(screen.getByText('나: 안녕하세요')).toBeVisible();
+    expect(screen.getByText('상대: 반갑습니다')).toBeVisible();
   });
 
   it('ignores a late message from another room', () => {
@@ -1286,7 +1288,7 @@ describe('room chat', () => {
 
     serverEmit('game:state', gameState({ phase: 'player2' }));
 
-    expect(screen.getByText('Opponent: 한 판 더?')).toBeVisible();
+    expect(screen.getByText('상대: 한 판 더?')).toBeVisible();
   });
 
   it.each([
@@ -1334,11 +1336,11 @@ describe('room chat', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '메시지' }), {
       target: { value: 'draft' },
     });
-    expect(screen.getByText('Self: remove me')).toBeVisible();
+    expect(screen.getByText('나: remove me')).toBeVisible();
 
     trigger();
 
-    expect(screen.queryByText('Self: remove me')).not.toBeInTheDocument();
+    expect(screen.queryByText('나: remove me')).not.toBeInTheDocument();
 
     if (screen.queryByRole('textbox', { name: '메시지' })) {
       expect(screen.getByRole('textbox', { name: '메시지' })).toHaveValue('');
@@ -1365,7 +1367,7 @@ describe('disconnect', () => {
     );
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: 'Dealer' }),
+      screen.queryByRole('heading', { name: '딜러' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
@@ -1374,7 +1376,7 @@ describe('disconnect', () => {
     serverEmit('matchmaking:matched', playerOneMatch);
 
     expect(
-      screen.queryByRole('heading', { name: 'Dealer' }),
+      screen.queryByRole('heading', { name: '딜러' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
@@ -1392,7 +1394,7 @@ describe('disconnect', () => {
     expect(screen.queryByText('Room: game:test-room')).not.toBeInTheDocument();
     expect(screen.queryByText('Seat: player1')).not.toBeInTheDocument();
     expect(
-      screen.queryByRole('heading', { name: 'Dealer' }),
+      screen.queryByRole('heading', { name: '딜러' }),
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(
