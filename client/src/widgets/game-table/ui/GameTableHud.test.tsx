@@ -82,6 +82,21 @@ describe('GameTableHud', () => {
     expect(hudProps.onStand).toHaveBeenCalledOnce();
   });
 
+  it('supports action shortcuts without intercepting chat input', () => {
+    const hudProps = props({ layoutMode: 'compact' });
+    render(<GameTableHud {...hudProps} />);
+
+    fireEvent.keyDown(window, { key: 'h' });
+    fireEvent.keyDown(window, { key: 'S' });
+    fireEvent.click(screen.getByRole('button', { name: '채팅 열기' }));
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '메시지' }), {
+      key: 'h',
+    });
+
+    expect(hudProps.onHit).toHaveBeenCalledOnce();
+    expect(hudProps.onStand).toHaveBeenCalledOnce();
+  });
+
   it('shows timer meaning for self and opponent', () => {
     const { rerender } = render(
       <GameTableHud
@@ -134,8 +149,18 @@ describe('GameTableHud', () => {
         'aria-expanded',
         'true',
       );
-      expect(screen.getByText('Self: 안녕하세요')).toBeVisible();
-      expect(screen.getByText('Opponent: 반갑습니다')).toBeVisible();
+      const selfMessage = screen.getByText('나: 안녕하세요');
+      const opponentMessage = screen.getByText('상대: 반갑습니다');
+      expect(selfMessage).toBeVisible();
+      expect(opponentMessage).toBeVisible();
+      expect(selfMessage.closest('[data-self]')).toHaveAttribute(
+        'data-self',
+        'true',
+      );
+      expect(opponentMessage.closest('[data-self]')).toHaveAttribute(
+        'data-self',
+        'false',
+      );
       fireEvent.change(screen.getByRole('textbox', { name: '메시지' }), {
         target: { value: '새 메시지' },
       });
@@ -212,12 +237,12 @@ describe('GameTableHud', () => {
     expect(
       screen.queryByRole('dialog', { name: '게임 결과' }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText('Dealer score: ?')).toBeVisible();
-    expect(screen.queryByText('Result: 승리')).not.toBeInTheDocument();
-    expect(screen.queryByText('Result: 패배')).not.toBeInTheDocument();
+    expect(screen.getByText('점수: ?')).toBeVisible();
+    expect(screen.queryByText('결과: 승리')).not.toBeInTheDocument();
+    expect(screen.queryByText('결과: 패배')).not.toBeInTheDocument();
   });
 
-  it('reveals canonical results when dealer sequence completes', () => {
+  it('keeps canonical results in the finished dialog only', () => {
     const state = gameState({
       phase: 'finished',
       player1: { ...gameState().player1, result: 'win' },
@@ -233,9 +258,9 @@ describe('GameTableHud', () => {
     render(<GameTableHud {...props({ gameState: state })} />);
 
     expect(screen.getByRole('dialog', { name: '게임 결과' })).toBeVisible();
-    expect(screen.getByText('Dealer score: 19')).toBeVisible();
-    expect(screen.getByText('Result: 승리')).toBeVisible();
-    expect(screen.getByText('Result: 패배')).toBeVisible();
+    expect(screen.getByText('점수: 19')).toBeVisible();
+    expect(screen.queryByText('결과: 승리')).not.toBeInTheDocument();
+    expect(screen.queryByText('결과: 패배')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '재대결' })).toBeVisible();
     expect(screen.getByRole('button', { name: '새 상대 찾기' })).toBeVisible();
   });

@@ -130,10 +130,10 @@ function createFeltTexture() {
     canvas.height * 0.48,
     canvas.width * 0.56,
   );
-  gradient.addColorStop(0, '#1687a4');
-  gradient.addColorStop(0.48, '#0b7391');
-  gradient.addColorStop(0.78, '#075a73');
-  gradient.addColorStop(1, '#043f52');
+  gradient.addColorStop(0, '#28654a');
+  gradient.addColorStop(0.48, '#20583f');
+  gradient.addColorStop(0.78, '#18452f');
+  gradient.addColorStop(1, '#103221');
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -445,7 +445,7 @@ function Table() {
       >
         <extrudeGeometry args={[FRAME_SHAPE, FRAME_EXTRUDE_OPTIONS]} />
         <meshStandardMaterial
-          color="#0e1d2a"
+          color="#13231b"
           metalness={0.08}
           roughness={0.5}
         />
@@ -753,14 +753,15 @@ function GameTableRound({
   return (
     <section
       aria-label="블랙잭 게임 테이블"
-      className={`h-full w-full overflow-hidden bg-[#06140f] ${
+      data-layout={layoutMode}
+      className={`h-full w-full overflow-hidden bg-surface-deep ${
         layoutMode === 'wide'
-          ? 'grid grid-cols-[minmax(0,1fr)_clamp(320px,calc(215px+8.6vw),500px)]'
+          ? 'grid grid-cols-[minmax(0,1fr)_clamp(350px,20vw,500px)]'
           : 'relative'
       }`}
       ref={containerRef}
     >
-      <div className="relative h-full min-h-0 w-full min-w-0 overflow-hidden bg-[#06140f]">
+      <div className="relative h-full min-h-0 w-full min-w-0 overflow-hidden bg-surface-deep">
         <Canvas
           aria-hidden="true"
           camera={{ fov: 24, near: 0.1, far: 50, position: [0, 20.5, 2] }}
@@ -773,10 +774,10 @@ function GameTableRound({
           }}
           shadows={{ type: PCFShadowMap }}
         >
-          <color attach="background" args={['#04171e']} />
-          <ambientLight color="#d8edf0" intensity={0.34} />
+          <color attach="background" args={['#0b1916']} />
+          <ambientLight color="#e2ecdb" intensity={0.34} />
           <directionalLight
-            color="#9bcbd2"
+            color="#bccfab"
             intensity={0.42}
             position={[-6, 7, 5]}
           />
@@ -798,7 +799,7 @@ function GameTableRound({
             shadow-normalBias={0.025}
           />
           <pointLight
-            color="#61b7c8"
+            color="#a0c58b"
             decay={2}
             distance={12}
             intensity={5}
@@ -866,7 +867,7 @@ function GameTableRound({
         ) : null}
       </div>
       {layoutMode === 'wide' && (
-        <aside className="min-h-0 border-l border-white/10 bg-slate-950/80 p-[clamp(16px,calc(10px+0.3125vw),22px)]">
+        <aside className="min-h-0 border-l border-white/10 bg-surface p-[clamp(16px,calc(10px+0.3125vw),22px)]">
           {gameState.phase !== 'finished' && (
             <GameTableChatPanel
               chatInput={hudProps.chatInput}
