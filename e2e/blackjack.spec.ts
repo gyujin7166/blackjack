@@ -240,12 +240,12 @@ test('두 플레이어가 매칭, 채팅, 라운드 종료 후 같은 room에서
 
     await Promise.all([pageA.goto('/'), pageB.goto('/')]);
     await Promise.all([
-      expect(
-        pageA.getByText('서버에 연결되었습니다.', { exact: true }),
-      ).toBeVisible(),
-      expect(
-        pageB.getByText('서버에 연결되었습니다.', { exact: true }),
-      ).toBeVisible(),
+      expect(pageA.getByRole('button', { name: '게임 시작' })).toBeEnabled({
+        timeout: 20_000,
+      }),
+      expect(pageB.getByRole('button', { name: '게임 시작' })).toBeEnabled({
+        timeout: 20_000,
+      }),
     ]);
 
     await pageA.getByRole('button', { name: '게임 시작' }).click();

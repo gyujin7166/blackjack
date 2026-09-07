@@ -24,15 +24,13 @@ type ConnectionStatus =
 
 const connectionPresentations: Record<
   ConnectionStatus,
-  { message: string; detail?: string }
+  { message?: string; detail?: string }
 > = {
   connecting: {
     message: '서버에 연결 중입니다...',
     detail: '첫 연결은 잠시 걸릴 수 있습니다.',
   },
-  connected: {
-    message: '서버에 연결되었습니다.',
-  },
+  connected: {},
   reconnecting: {
     message: '연결이 끊어졌습니다. 자동으로 다시 연결을 시도하고 있습니다.',
   },
@@ -283,6 +281,10 @@ export function App() {
         : '게임 시작';
   const isConnected = connectionStatus === 'connected' && socket.connected;
   const connectionPresentation = connectionPresentations[connectionStatus];
+  const showLobbyStatus =
+    connectionStatus !== 'connected' ||
+    matchmakingStatus === 'waiting' ||
+    Boolean(match);
   const canAct = Boolean(
     isConnected &&
     match &&
@@ -422,37 +424,43 @@ export function App() {
             </span>
           </button>
 
-          <div
-            className="mt-[17px] flex max-w-[390px] items-start gap-2 text-[11px] leading-[1.8] text-muted"
-            data-connection={connectionStatus}
-            role="status"
-            aria-live="polite"
-          >
-            <span
-              className={`mt-[7px] size-[5px] shrink-0 rounded-full ${
-                connectionStatus === 'connected'
-                  ? 'bg-connection shadow-connection'
-                  : connectionStatus === 'disconnected'
-                    ? 'bg-disconnected'
-                    : 'bg-warm'
-              }`}
-              aria-hidden="true"
-            />
-            <div>
-              <p>{connectionPresentation.message}</p>
-              {connectionPresentation.detail && (
-                <p>{connectionPresentation.detail}</p>
-              )}
-              {matchmakingStatus === 'waiting' && (
-                <p className="text-accent">
-                  다른 플레이어를 기다리고 있습니다.
-                </p>
-              )}
-              {match && (
-                <p className="text-accent">게임 테이블을 준비하고 있습니다.</p>
-              )}
+          {showLobbyStatus && (
+            <div
+              className="mt-[17px] flex max-w-[390px] items-start gap-2 text-[11px] leading-[1.8] text-muted"
+              data-connection={connectionStatus}
+              role="status"
+              aria-live="polite"
+            >
+              <span
+                className={`mt-[7px] size-[5px] shrink-0 rounded-full ${
+                  connectionStatus === 'connected'
+                    ? 'bg-connection shadow-connection'
+                    : connectionStatus === 'disconnected'
+                      ? 'bg-disconnected'
+                      : 'bg-warm'
+                }`}
+                aria-hidden="true"
+              />
+              <div>
+                {connectionPresentation.message && (
+                  <p>{connectionPresentation.message}</p>
+                )}
+                {connectionPresentation.detail && (
+                  <p>{connectionPresentation.detail}</p>
+                )}
+                {matchmakingStatus === 'waiting' && (
+                  <p className="text-accent">
+                    다른 플레이어를 기다리고 있습니다.
+                  </p>
+                )}
+                {match && (
+                  <p className="text-accent">
+                    게임 테이블을 준비하고 있습니다.
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           {opponentNotice && (
             <p
               className="mt-4 border-l-2 border-notice bg-notice/5 px-[15px] py-3 text-xs leading-[1.8] text-notice-text"
