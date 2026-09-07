@@ -174,9 +174,9 @@ describe('connection status', () => {
 
     act(() => socketMock.serverEmit('connect'));
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '서버에 연결되었습니다.',
-    );
+    expect(
+      screen.queryByText('서버에 연결되었습니다.'),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
   });
 
@@ -222,9 +222,9 @@ describe('connection status', () => {
 
     act(() => socketMock.serverEmit('connect'));
 
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '서버에 연결되었습니다.',
-    );
+    expect(
+      screen.queryByText('서버에 연결되었습니다.'),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
   });
 
@@ -982,9 +982,9 @@ describe('new opponent', () => {
       screen.getByText('상대 플레이어가 새 상대 찾기를 선택했습니다.'),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '서버에 연결되었습니다.',
-    );
+    expect(
+      screen.queryByText('서버에 연결되었습니다.'),
+    ).not.toBeInTheDocument();
   });
 
   it('clears the opponent-left notice when starting matchmaking again', () => {
@@ -1401,9 +1401,9 @@ describe('disconnect', () => {
       screen.getByText('상대 플레이어의 연결이 종료되었습니다.'),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: '게임 시작' })).toBeEnabled();
-    expect(screen.getByRole('status')).toHaveTextContent(
-      '서버에 연결되었습니다.',
-    );
+    expect(
+      screen.queryByText('서버에 연결되었습니다.'),
+    ).not.toBeInTheDocument();
   });
 
   it('allows matchmaking again and clears the opponent disconnect message', () => {

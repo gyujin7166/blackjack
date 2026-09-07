@@ -59,21 +59,6 @@ export function GameTableChatPanel({
           isDrawer ? 'mb-3 text-sm' : 'mb-[clamp(12px,calc(6px+0.3125vw),16px)]'
         } ${textClass}`}
       >
-        {chatMessages.length === 0 && (
-          <div className="flex min-h-full flex-col items-center justify-center gap-3 text-center text-chat-muted">
-            <span
-              className={isDrawer ? 'text-[28px]' : 'text-[34px]'}
-              aria-hidden="true"
-            >
-              ♧
-            </span>
-            <p>
-              같은 테이블, 새로운 만남.
-              <br />
-              가벼운 인사로 시작해 보세요.
-            </p>
-          </div>
-        )}
         {chatMessages.map((message, index) => {
           const isSelf = message.sender === selfSeat;
 

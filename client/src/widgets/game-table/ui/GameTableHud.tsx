@@ -52,9 +52,9 @@ const statusLabels: Record<PlayerStatus, string> = {
 const statusPanelBaseClass =
   'rounded-xl border border-border-muted/15 bg-surface/85 text-ink shadow-status-panel backdrop-blur-sm';
 const wideStatusPanelClass =
-  'min-w-[clamp(164px,8.75vw,216px)] px-[calc(clamp(18px,1vw,24px)+4px)] py-[clamp(18px,1vw,24px)] text-[clamp(18px,0.88vw,22px)] leading-snug';
+  'min-w-[clamp(152px,8.25vw,204px)] px-[clamp(18px,0.9vw,22px)] py-[clamp(14px,0.8vw,18px)] text-[clamp(16px,0.82vw,20px)] leading-snug';
 const compactStatusPanelClass =
-  'min-w-[86px] px-3 py-2 text-[11px] leading-tight';
+  'min-w-[82px] px-2.5 py-1.5 text-[10px] leading-tight';
 const wideActionButtonClass =
   'min-h-[clamp(68px,3.8vw,80px)] px-[clamp(16px,0.9vw,20px)] text-[clamp(18px,0.88vw,22px)]';
 const activeStatusPanelClass = 'border-turn shadow-active-status';
