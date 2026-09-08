@@ -8,3 +8,6 @@ playwright-report/
 test-results/
 .DS_Store
 .vite/
+
+# local-only sound assets
+client/public/sound/*.mp3
